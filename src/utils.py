@@ -1,10 +1,21 @@
 import os
+import json
+import time
 import torch
 from torch.utils.data import DataLoader
 
 import networks
 import preprocess
 from preprocess import ImageList
+
+def dump_params(config):
+    dump_params = config.copy()
+    for k, v in dump_params.items():
+        dump_params[k] = str(v)
+        write_logs(config, f"{k}: {v}")
+    with open(os.path.join(config['output_path'], "params.json"), "wt") as f:
+        f.write(json.dumps(dump_params, indent=4) + "\n")
+        f.flush()
 
 
 def inv_lr_scheduler(optimizer, iter_num, gamma, power, lr=0.001, weight_decay=0.0005):
@@ -21,8 +32,8 @@ def inv_lr_scheduler(optimizer, iter_num, gamma, power, lr=0.001, weight_decay=0
 def build_config(args):
     config = {
         'method': args.method,
-        'ndomains': 2,
-        'output_path': 'results/' + args.output_dir,
+        # 'ndomains': 2,
+        'output_path': args.output_dir,
         'threshold': args.threshold,
         'edge_features': args.edge_features,
         'source_iters': args.source_iters,
@@ -71,18 +82,19 @@ def build_config(args):
     }
     # dataset params
     config['dataset'] = args.dataset
-    config['data_root'] = args.data_root
+    config['data_root'] = os.path.expanduser(os.path.join(args.data_root, args.dataset))
+    config['ndomains'] = len(args.target.split("_"))
     config['data'] = {
         'source': {
             'name': args.source,
             'batch_size': args.source_batch,
         },
         'target': {
-            'name': args.target,
+            'name': args.target.split("_"),
             'batch_size': args.target_batch,
         },
         'test': {
-            'name': args.target,
+            'name': args.target.split("_"),
             'batch_size': 512,
         },
     }
@@ -109,6 +121,9 @@ def build_config(args):
         'test': preprocess.image_test(**config["prep"]['params']),
     }
     # create output folder and log file
+    time_tag = time.strftime("%Y%m%d%H%M%S", time.localtime())
+    output_file =  f"{args.method}_{args.dataset}_{args.source}_rest_{args.seed}_{time_tag}"
+    config['output_path'] = os.path.expanduser(os.path.join(args.output_dir, output_file))
     if not os.path.exists(config['output_path']):
         os.system('mkdir -p '+config['output_path'])
     config['out_file'] = open(os.path.join(config['output_path'], 'log.txt'), 'w')
@@ -117,6 +132,7 @@ def build_config(args):
     config['out_file'].write(str(config)+'\n')
     config['out_file'].flush()
 
+    dump_params(config)
     return config
 
 

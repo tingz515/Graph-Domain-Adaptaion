@@ -22,14 +22,15 @@ parser.add_argument('--save_models', action='store_true', help='whether to save 
 parser.add_argument('--dataset', type=str, default='office31', choices=['office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
 parser.add_argument('--source', default='amazon', help='name of source domain')
-parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
-parser.add_argument('--data_root', type=str, default='/data/office31', help='path to dataset root')
+parser.add_argument('--target', default='dslr_webcam', help='names of target domains')
+# parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
+parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
 parser.add_argument('--source_iters', type=int, default=100, help='number of source pre-train iters')
 parser.add_argument('--adapt_iters', type=int, default=3000, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=1000, help='number of fine-tuning iters')
 parser.add_argument('--test_interval', type=int, default=500, help='interval of two continuous test phase')
-parser.add_argument('--output_dir', type=str, default='res', help='output directory')
+parser.add_argument('--output_dir', type=str, default='~/results', help='output directory')
 parser.add_argument('--source_batch', type=int, default=32)
 parser.add_argument('--target_batch', type=int, default=32)
 # optimization args
@@ -39,7 +40,7 @@ parser.add_argument('--lambda_edge', default=1., type=float, help='edge loss wei
 parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
-parser.add_argument('--seed', type=int, default=0, help='random seed for training')
+parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 
 
@@ -63,14 +64,14 @@ def main(args):
     net_config = config['encoder']
     base_network = net_config["name"](**net_config["params"])
     base_network = base_network.to(DEVICE)
-    print(base_network)
+    utils.write_logs(config, str(base_network))
     # set GNN classifier
     classifier_gnn = graph_net.ClassifierGNN(in_features=base_network.bottleneck.out_features,
                                              edge_features=config['edge_features'],
                                              nclasses=base_network.fc.out_features,
                                              device=DEVICE)
     classifier_gnn = classifier_gnn.to(DEVICE)
-    print(classifier_gnn)
+    utils.write_logs(config, str(classifier_gnn))
 
     # train on source domain and compute domain inheritability
     log_str = '==> Step 1: Pre-training on the source dataset ...'

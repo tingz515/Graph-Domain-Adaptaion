@@ -133,3 +133,5 @@ datasets
 wandb
 logs
 essential-byol
+result*
+figure*

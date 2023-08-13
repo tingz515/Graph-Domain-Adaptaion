@@ -122,7 +122,7 @@ https://github.com/thuml/CDAN/tree/master/pytorch
 
 
 class ImageList(Dataset):
-    def __init__(self, image_root, image_list_root, dataset, domain_label, dataset_name, split='train', transform=None, 
+    def __init__(self, image_root, image_list_root, dataset, domain_label, dataset_name, split='train', transform=None,
                  sample_masks=None, pseudo_labels=None, use_cgct_mask=False):
         self.image_root = image_root
         self.dataset = dataset  # name of the domain
@@ -172,10 +172,10 @@ class ImageList(Dataset):
         elif self.dataset_name in ['office-home', 'pacs']:
             img = self.loader(os.path.join(self.image_root, self.dataset, path))
         elif self.dataset_name == 'office31':
-            img = self.loader(os.path.join(self.image_root, self.dataset, 'images', path))
+            img = self.loader(os.path.join(self.image_root, self.dataset, path))
         if self.transform is not None:
             img = self.transform(img)
-        
+
         output['img'] = img
         if self.pseudo_labels is not None:
             output['target'] = torch.squeeze(torch.LongTensor([np.int64(self.labels[index]).item()]))
