@@ -2,18 +2,64 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision import models
+
+class HyperLinear(nn.Module):
+    def __init__(
+        self,
+        ndomains: int,
+        embedding_dim: int,
+        hidden_sizes: list,
+        feature_dim: int,
+        output_dim: int,
+    ):
+        super().__init__()
+        self.feature_dim = feature_dim
+        self.output_dim = output_dim
+
+        input_dim = ndomains
+        output_dim = feature_dim * output_dim + output_dim
+        self.embed = nn.Sequential(nn.Embedding(input_dim, embedding_dim), nn.ReLU())
+        dims = [embedding_dim] + hidden_sizes + [output_dim]
+        model = []
+        for i in range(len(dims) - 1):
+            model.append(nn.Linear(dims[i], dims[i + 1]))
+            if i != len(dims) - 2:
+                model.append(nn.ReLU())
+        self.model = nn.Sequential(*model)
+
+        self.in_features = feature_dim
+        self.out_features = output_dim
+
+    def base_forward(self, x, param):
+        weight, bias = torch.split(
+            param, [self.feature_dim * self.output_dim, self.output_dim], dim=-1
+        )
+        weight = weight.reshape(self.output_dim, self.feature_dim)
+        bias = bias.reshape(self.output_dim)
+        out = F.linear(x, weight, bias)
+        # out = torch.einsum("bn, bno -> bo", x, weights) + bias
+        return out
+
+    def forward(self, x, id):
+        embed = self.embed(id)
+        param = self.model(embed)
+        if self.feature_dim == 0:
+            return param
+        out = self.base_forward(x, param)
+        return out
 
 
 def init_weights(m):
     classname = m.__class__.__name__
-    if classname.find('Conv2d') != -1 or classname.find('ConvTranspose2d') != -1:
+    if classname.startswith('Conv2d') or classname.startswith('ConvTranspose2d'):
         nn.init.kaiming_uniform_(m.weight)
         nn.init.zeros_(m.bias)
-    elif classname.find('BatchNorm') != -1:
+    elif classname.startswith('BatchNorm'):
         nn.init.normal_(m.weight, 1.0, 0.02)
         nn.init.zeros_(m.bias)
-    elif classname.find('Linear') != -1:
+    elif classname.startswith('Linear'):
         nn.init.xavier_normal_(m.weight)
         nn.init.zeros_(m.bias)
 
@@ -88,7 +134,17 @@ resnet_dict = {'ResNet18': models.resnet18, 'ResNet34': models.resnet34, 'ResNet
 
 
 class ResNetFc(nn.Module):
-    def __init__(self, resnet_name, use_bottleneck=True, bottleneck_dim=256, new_cls=False, class_num=1000):
+    def __init__(
+        self,
+        resnet_name,
+        use_bottleneck=True,
+        bottleneck_dim=256,
+        new_cls=False,
+        class_num=1000,
+        domain_num=3,
+        hyper_embed_dim=64,
+        use_hyper=True
+    ):
         super(ResNetFc, self).__init__()
         model_resnet = resnet_dict[resnet_name](pretrained=True)
         self.conv1 = model_resnet.conv1
@@ -104,11 +160,15 @@ class ResNetFc(nn.Module):
                                             self.layer2, self.layer3, self.layer4, self.avgpool)
         self.use_bottleneck = use_bottleneck
         self.new_cls = new_cls
+        self.use_hyper = use_hyper
         if new_cls:
             if self.use_bottleneck:
                 self.bottleneck = nn.Linear(model_resnet.fc.in_features, bottleneck_dim)
-                self.fc = nn.Linear(bottleneck_dim, class_num)
                 self.bottleneck.apply(init_weights)
+                if use_hyper:
+                    self.fc = HyperLinear(domain_num, hyper_embed_dim, [], bottleneck_dim, class_num)
+                else:
+                    self.fc = nn.Linear(bottleneck_dim, class_num)
                 self.fc.apply(init_weights)
                 self.__in_features = bottleneck_dim
             else:
@@ -119,12 +179,15 @@ class ResNetFc(nn.Module):
             self.fc = model_resnet.fc
             self.__in_features = model_resnet.fc.in_features
 
-    def forward(self, x):
+    def forward(self, x, id=None):
         x = self.feature_layers(x)
         x = x.view(x.size(0), -1)
         if self.use_bottleneck and self.new_cls:
             x = self.bottleneck(x)
-        y = self.fc(x)
+        if self.use_hyper:
+            y = self.fc(x, id)
+        else:
+            y = self.fc(x)
         return x, y
 
     def output_num(self):

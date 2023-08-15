@@ -1,14 +1,15 @@
-
+cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 data_root="/root/datasets"
-output_dir="./results/$time_tag"
+output_dir="~/results/ZTing/$time_tag"
 # source="webcam"
 # target="dslr_amazon"
-seed=2023
+use_hyper=1
 
-for source in webcam dslr amazon
+time=1.0
+for source in webcam dslr # amazon
 do
     if [ $(echo $source | grep "webcam")x != ""x ];then
         target=dslr_amazon
@@ -18,9 +19,11 @@ do
         target=dslr_webcam
     fi
     
-    export CUDA_VISIBLE_DEVICES=$1
+    export CUDA_VISIBLE_DEVICES=$cuda_id
 
-    for i in $(seq 5)
+    seed=2023
+
+    for i in $(seq 2)
     do
         tag=$(date "+%Y%m%d%H%M%S")
         python src/main_dcgct.py \
@@ -31,6 +34,8 @@ do
                 --adapt_iters 3000 \
                 --finetune_iters 15000 \
                 --lambda_node 0.3 \
+                --use_hyper $use_hyper \
+                --seed $seed \
                 --source $source \
                 --target $target \
                 --data_root $data_root \
@@ -43,3 +48,5 @@ do
 
     let cuda_id=$cuda_id+1
 done
+
+# ps -ef | grep dcgct | awk '{print $2}'| xargs kill -9

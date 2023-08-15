@@ -44,7 +44,7 @@ def eval_domain(config, test_loader, base_network, classifier_gnn):
             data = iter_test.next()
             inputs = data['img'].to(DEVICE)
             # forward pass
-            feature, logits_mlp = base_network(inputs)
+            feature, logits_mlp = base_network(inputs, data['domain'][0].to(DEVICE))
             # check if number of samples is greater than 1
             if len(inputs) == 1:
                 # gnn cannot handle only one sample ... use MLP instead
@@ -150,7 +150,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
         inputs_source, labels_source = batch_source['img'].to(DEVICE), batch_source['target'].to(DEVICE)
 
         # make forward pass for encoder and mlp head
-        features_source, logits_mlp = base_network(inputs_source)
+        features_source, logits_mlp = base_network(inputs_source, batch_source["domain"][0].to(DEVICE))
         mlp_loss = ce_criterion(logits_mlp, labels_source)
 
         # make forward pass for gnn head
@@ -225,8 +225,8 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         domain_input = torch.cat([domain_source, domain_target], dim=0)
 
         # make forward pass for encoder and mlp head
-        features_source, logits_mlp_source = base_network(inputs_source)
-        features_target, logits_mlp_target = base_network(inputs_target)
+        features_source, logits_mlp_source = base_network(inputs_source, domain_source[0])
+        features_target, logits_mlp_target = base_network(inputs_target, domain_target[0])
         features = torch.cat((features_source, features_target), dim=0)
         logits_mlp = torch.cat((logits_mlp_source, logits_mlp_target), dim=0)
         softmax_mlp = nn.Softmax(dim=1)(logits_mlp)
@@ -320,8 +320,8 @@ def adapt_target_cgct(config, base_network, classifier_gnn, dset_loaders, random
         domain_input = torch.cat([domain_source, domain_target], dim=0)
 
         # make forward pass for encoder and mlp head
-        features_source, logits_mlp_source = base_network(inputs_source)
-        features_target, logits_mlp_target = base_network(inputs_target)
+        features_source, logits_mlp_source = base_network(inputs_source, domain_source[0])
+        features_target, logits_mlp_target = base_network(inputs_target, domain_target[0])
         features = torch.cat((features_source, features_target), dim=0)
         logits_mlp = torch.cat((logits_mlp_source, logits_mlp_target), dim=0)
         softmax_mlp = nn.Softmax(dim=1)(logits_mlp)

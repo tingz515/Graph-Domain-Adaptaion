@@ -62,6 +62,9 @@ def build_config(args):
                    'use_bottleneck': True,
                    'bottleneck_dim': 256,
                    'new_cls': True,
+                   "hyper_embed_dim": args.hyper_embed_dim,
+                   'domain_num': len(args.target.split("_")) + 1,
+                   'use_hyper': args.use_hyper,
                    },
     }
     # optimizer params
