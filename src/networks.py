@@ -10,7 +10,8 @@ class HyperLinear(nn.Module):
         self,
         ndomains: int,
         embedding_dim: int,
-        hidden_sizes: list,
+        hidden_dim: int,
+        hidden_num: int,
         feature_dim: int,
         output_dim: int,
     ):
@@ -20,13 +21,15 @@ class HyperLinear(nn.Module):
 
         input_dim = ndomains
         output_dim = feature_dim * output_dim + output_dim
+        # self.embed = nn.Embedding(input_dim, embedding_dim)
         self.embed = nn.Sequential(nn.Embedding(input_dim, embedding_dim), nn.ReLU())
-        dims = [embedding_dim] + hidden_sizes + [output_dim]
+        # Do it needs ReLU after Embedding ?
+        dims = [embedding_dim] + [hidden_dim] * hidden_num
         model = []
         for i in range(len(dims) - 1):
             model.append(nn.Linear(dims[i], dims[i + 1]))
-            if i != len(dims) - 2:
-                model.append(nn.ReLU())
+            model.append(nn.ReLU())
+        model.append(nn.Linear(dims[-1], output_dim))
         self.model = nn.Sequential(*model)
 
         self.in_features = feature_dim
@@ -143,6 +146,8 @@ class ResNetFc(nn.Module):
         class_num=1000,
         domain_num=3,
         hyper_embed_dim=64,
+        hyper_hidden_dim=128,
+        hyper_hidden_num=1,
         use_hyper=True
     ):
         super(ResNetFc, self).__init__()
@@ -166,7 +171,7 @@ class ResNetFc(nn.Module):
                 self.bottleneck = nn.Linear(model_resnet.fc.in_features, bottleneck_dim)
                 self.bottleneck.apply(init_weights)
                 if use_hyper:
-                    self.fc = HyperLinear(domain_num, hyper_embed_dim, [], bottleneck_dim, class_num)
+                    self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, bottleneck_dim, class_num)
                 else:
                     self.fc = nn.Linear(bottleneck_dim, class_num)
                 self.fc.apply(init_weights)
@@ -184,6 +189,7 @@ class ResNetFc(nn.Module):
         x = x.view(x.size(0), -1)
         if self.use_bottleneck and self.new_cls:
             x = self.bottleneck(x)
+            x = F.relu(x)
         if self.use_hyper:
             y = self.fc(x, id)
         else:
