@@ -415,7 +415,7 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     # create new source dataloader
     dset_loaders['source'] = DataLoader(dsets['source'], batch_size=config['data']['source']['batch_size'] * 2,
                                         shuffle=True, num_workers=config['num_workers'],
-                                        drop_last=True, pin_memory=True)
+                                        drop_last=True, pin_memory=False)
 
 
 def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier_gnn, curri_iter):
@@ -465,4 +465,4 @@ def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier
         # create new source dataloader
         dset_loaders['source'] = DataLoader(dsets['source'], batch_size=config['data']['source']['batch_size'] * 2,
                                             shuffle=True, num_workers=config['num_workers'],
-                                            drop_last=True, pin_memory=True)
+                                            drop_last=True, pin_memory=False)

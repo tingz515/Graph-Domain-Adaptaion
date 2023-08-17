@@ -100,7 +100,7 @@ def build_config(args):
         },
         'test': {
             'name': args.target.split("_"),
-            'batch_size': 512,
+            'batch_size': args.test_batch,
         },
     }
     # set number of classes
@@ -160,7 +160,7 @@ def build_data(config):
                                 dataset=data_config['source']['name'], transform=config['prep']["source"],
                                 domain_label=0, domain_id=0, dataset_name=config['dataset'], split='train')
     dset_loaders['source'] = DataLoader(dsets['source'], batch_size=train_bs, shuffle=True,
-                                        num_workers=config['num_workers'], drop_last=True, pin_memory=True)
+                                        num_workers=config['num_workers'], drop_last=True, pin_memory=False)
 
     # target dataloader
     for i, dset_name in enumerate(sorted(data_config['target']['name'])):
@@ -181,7 +181,7 @@ def build_data(config):
                                                              num_workers=config['num_workers'], drop_last=True)
         dset_loaders['target_test'][dset_name] = DataLoader(dataset=dsets['target_test'][dset_name],
                                                             batch_size=test_bs, num_workers=config['num_workers'],
-                                                            pin_memory=True)
+                                                            pin_memory=False)
     return dsets, dset_loaders
 
 

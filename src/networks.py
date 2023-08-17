@@ -16,8 +16,8 @@ class HyperLinear(nn.Module):
         output_dim: int,
     ):
         super().__init__()
-        self.feature_dim = feature_dim
-        self.output_dim = output_dim
+        self.in_features = feature_dim
+        self.out_features = output_dim
 
         input_dim = ndomains
         output_dim = feature_dim * output_dim + output_dim
@@ -32,25 +32,22 @@ class HyperLinear(nn.Module):
         model.append(nn.Linear(dims[-1], output_dim))
         self.model = nn.Sequential(*model)
 
-        self.in_features = feature_dim
-        self.out_features = output_dim
-
     def base_forward(self, x, param):
         weight, bias = torch.split(
-            param, [self.feature_dim * self.output_dim, self.output_dim], dim=-1
+            param, [self.in_features * self.out_features, self.out_features], dim=-1
         )
-        weight = weight.reshape(self.output_dim, self.feature_dim)
-        bias = bias.reshape(self.output_dim)
+        weight = weight.reshape(self.out_features, self.in_features)
+        bias = bias.reshape(self.out_features)
         out = F.linear(x, weight, bias)
-        # weight = weight.reshape(-1, self.output_dim, self.feature_dim)
-        # bias = bias.reshape(-1, self.output_dim)
+        # weight = weight.reshape(-1, self.out_features, self.in_features)
+        # bias = bias.reshape(-1, self.out_features)
         # out = torch.einsum("bn, bon -> bo", x, weight) + bias
         return out
 
     def forward(self, x, id):
         embed = self.embed(id)
         param = self.model(embed)
-        if self.feature_dim == 0:
+        if self.in_features == 0:
             return param
         out = self.base_forward(x, param)
         return out

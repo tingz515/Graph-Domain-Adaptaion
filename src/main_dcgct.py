@@ -30,13 +30,14 @@ parser.add_argument('--target', default='dslr_amazon', help='names of target dom
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
-parser.add_argument('--source_iters', type=int, default=100, help='number of source pre-train iters')
-parser.add_argument('--adapt_iters', type=int, default=3000, help='number of iters for a curriculum adaptation')
-parser.add_argument('--finetune_iters', type=int, default=1000, help='number of fine-tuning iters')
+parser.add_argument('--source_iters', type=int, default=10, help='number of source pre-train iters')
+parser.add_argument('--adapt_iters', type=int, default=30, help='number of iters for a curriculum adaptation')
+parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
 parser.add_argument('--test_interval', type=int, default=500, help='interval of two continuous test phase')
 parser.add_argument('--output_dir', type=str, default='~/results', help='output directory')
 parser.add_argument('--source_batch', type=int, default=32)
 parser.add_argument('--target_batch', type=int, default=32)
+parser.add_argument('--test_batch', type=int, default=512)
 # optimization args
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
