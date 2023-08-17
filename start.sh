@@ -23,7 +23,7 @@ do
 
     seed=2023
 
-    for i in $(seq 2)
+    for i in $(seq 1)
     do
         tag=$(date "+%Y%m%d%H%M%S")
         python src/main_dcgct.py \

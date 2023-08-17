@@ -40,11 +40,12 @@ def eval_domain(config, test_loader, base_network, classifier_gnn):
     logits_mlp_all, logits_gnn_all, confidences_gnn_all, labels_all = [], [], [], []
     with torch.no_grad():
         iter_test = iter(test_loader)
+        domain_id = torch.tensor([test_loader.dataset.domain_id], dtype=torch.long).to(DEVICE)
         for i in range(len(test_loader)):
             data = iter_test.next()
             inputs = data['img'].to(DEVICE)
             # forward pass
-            feature, logits_mlp = base_network(inputs, data['domain'][0].to(DEVICE))
+            feature, logits_mlp = base_network(inputs, domain_id)
             # check if number of samples is greater than 1
             if len(inputs) == 1:
                 # gnn cannot handle only one sample ... use MLP instead
@@ -139,6 +140,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
     base_network.train()
     classifier_gnn.train()
     len_train_source = len(dset_loaders["source"])
+    domain_id = torch.tensor([0], dtype=torch.long).to(DEVICE)
     for i in range(config['source_iters']):
         optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
@@ -150,7 +152,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
         inputs_source, labels_source = batch_source['img'].to(DEVICE), batch_source['target'].to(DEVICE)
 
         # make forward pass for encoder and mlp head
-        features_source, logits_mlp = base_network(inputs_source, batch_source["domain"][0].to(DEVICE))
+        features_source, logits_mlp = base_network(inputs_source, domain_id)
         mlp_loss = ce_criterion(logits_mlp, labels_source)
 
         # make forward pass for gnn head
@@ -204,6 +206,8 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
     # start train loop
     len_train_source = len(dset_loaders['source'])
     len_train_target = len(dset_loaders['target_train'][max_inherit_domain])
+    domain_id_source = torch.tensor([0], dtype=torch.long).to(DEVICE)
+    domain_id_target = torch.tensor([dset_loaders['target_train'][max_inherit_domain].dataset.domain_id], dtype=torch.long).to(DEVICE)
     # set nets in train mode
     base_network.train()
     classifier_gnn.train()
@@ -225,8 +229,8 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         domain_input = torch.cat([domain_source, domain_target], dim=0)
 
         # make forward pass for encoder and mlp head
-        features_source, logits_mlp_source = base_network(inputs_source, domain_source[0])
-        features_target, logits_mlp_target = base_network(inputs_target, domain_target[0])
+        features_source, logits_mlp_source = base_network(inputs_source, domain_id_source)
+        features_target, logits_mlp_target = base_network(inputs_target, domain_id_target)
         features = torch.cat((features_source, features_target), dim=0)
         logits_mlp = torch.cat((logits_mlp_source, logits_mlp_target), dim=0)
         softmax_mlp = nn.Softmax(dim=1)(logits_mlp)
@@ -297,6 +301,8 @@ def adapt_target_cgct(config, base_network, classifier_gnn, dset_loaders, random
     # start train loop
     len_train_source = len(dset_loaders['source'])
     len_train_target = len(dset_loaders['target_train'])
+    domain_id_source = torch.tensor([0], dtype=torch.long).to(DEVICE)
+    domain_id_target = torch.tensor([dset_loaders['target_train'].dataset.domain_id], dtype=torch.long).to(DEVICE)
     # set nets in train mode
     base_network.train()
     classifier_gnn.train()
@@ -320,8 +326,8 @@ def adapt_target_cgct(config, base_network, classifier_gnn, dset_loaders, random
         domain_input = torch.cat([domain_source, domain_target], dim=0)
 
         # make forward pass for encoder and mlp head
-        features_source, logits_mlp_source = base_network(inputs_source, domain_source[0])
-        features_target, logits_mlp_target = base_network(inputs_target, domain_target[0])
+        features_source, logits_mlp_source = base_network(inputs_source, domain_id_source)
+        features_target, logits_mlp_target = base_network(inputs_target, domain_id_target)
         features = torch.cat((features_source, features_target), dim=0)
         logits_mlp = torch.cat((logits_mlp_source, logits_mlp_target), dim=0)
         softmax_mlp = nn.Softmax(dim=1)(logits_mlp)
@@ -380,7 +386,7 @@ def adapt_target_cgct(config, base_network, classifier_gnn, dset_loaders, random
 
 def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_network, classifier_gnn):
     target_dataset = ImageList(image_root=config['data_root'], image_list_root=config['data']['image_list_root'],
-                               dataset=max_inherit_domain, transform=config['prep']['test'], domain_label=0,
+                               dataset=max_inherit_domain, transform=config['prep']['test'], domain_label=0, domain_id=0,
                                dataset_name=config['dataset'], split='train')
     target_loader = DataLoader(target_dataset, batch_size=config['data']['test']['batch_size'],
                                num_workers=config['num_workers'], drop_last=False)
@@ -401,11 +407,11 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     pseudo_source_dataset = ImageList(image_root=config['data_root'],
                                       image_list_root=config['data']['image_list_root'],
                                       dataset=max_inherit_domain, transform=config['prep']['source'],
-                                      domain_label=0, dataset_name=config['dataset'], split='train',
+                                      domain_label=0, domain_id=0, dataset_name=config['dataset'], split='train',
                                       sample_masks=test_res['sample_masks'], pseudo_labels=test_res['pred_cls'])
 
     # append to the existing source list
-    dsets['source'] = ConcatDataset((dsets['source'], pseudo_source_dataset))
+    dsets['source'] = ConcatDataset((dsets['source'], pseudo_source_dataset), domain_id=0)
     # create new source dataloader
     dset_loaders['source'] = DataLoader(dsets['source'], batch_size=config['data']['source']['batch_size'] * 2,
                                         shuffle=True, num_workers=config['num_workers'],
@@ -414,9 +420,9 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
 
 def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier_gnn, curri_iter):
     target_dsets_new = {}
-    for target_domain in dsets['target_train']:
+    for i, target_domain in enumerate(dsets['target_train']):
         target_dataset = ImageList(image_root=config['data_root'], image_list_root=config['data']['image_list_root'],
-                                   dataset=target_domain, transform=config['prep']['test'], domain_label=1,
+                                   dataset=target_domain, transform=config['prep']['test'], domain_label=1, domain_id=i + 1,
                                    dataset_name=config['dataset'], split='train')
         target_loader = DataLoader(target_dataset, batch_size=config['data']['test']['batch_size'],
                                    num_workers=config['num_workers'], drop_last=False)
@@ -437,7 +443,7 @@ def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier
         target_dataset_new = ImageList(image_root=config['data_root'],
                                        image_list_root=config['data']['image_list_root'],
                                        dataset=target_domain, transform=config['prep']['target'],
-                                       domain_label=1, dataset_name=config['dataset'], split='train',
+                                       domain_label=1, domain_id=i + 1, dataset_name=config['dataset'], split='train',
                                        sample_masks=test_res['sample_masks_cgct'],
                                        pseudo_labels=test_res['pred_cls'], use_cgct_mask=True)
         target_dsets_new[target_domain] = target_dataset_new
@@ -447,12 +453,12 @@ def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier
             target_dataset_new = ImageList(image_root=config['data_root'],
                                            image_list_root=config['data']['image_list_root'],
                                            dataset=target_domain, transform=config['prep']['source'],
-                                           domain_label=0, dataset_name=config['dataset'], split='train',
+                                           domain_label=0, domain_id=0, dataset_name=config['dataset'], split='train',
                                            sample_masks=test_res['sample_masks'],
                                            pseudo_labels=test_res['pred_cls'], use_cgct_mask=False)
 
             # append to the existing source list
-            dsets['source'] = ConcatDataset((dsets['source'], target_dataset_new))
+            dsets['source'] = ConcatDataset((dsets['source'], target_dataset_new), domain_id=0)
     dsets['target_train'] = target_dsets_new
 
     if curri_iter == len(config['data']['target']['name']) - 1:

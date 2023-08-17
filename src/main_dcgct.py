@@ -25,8 +25,8 @@ parser.add_argument('--save_models', action='store_true', help='whether to save 
 # dataset args
 parser.add_argument('--dataset', type=str, default='office31', choices=['office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
-parser.add_argument('--source', default='amazon', help='name of source domain')
-parser.add_argument('--target', default='dslr_webcam', help='names of target domains')
+parser.add_argument('--source', default='webcam', help='name of source domain')
+parser.add_argument('--target', default='dslr_amazon', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args

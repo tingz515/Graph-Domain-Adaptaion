@@ -42,7 +42,9 @@ class HyperLinear(nn.Module):
         weight = weight.reshape(self.output_dim, self.feature_dim)
         bias = bias.reshape(self.output_dim)
         out = F.linear(x, weight, bias)
-        # out = torch.einsum("bn, bno -> bo", x, weights) + bias
+        # weight = weight.reshape(-1, self.output_dim, self.feature_dim)
+        # bias = bias.reshape(-1, self.output_dim)
+        # out = torch.einsum("bn, bon -> bo", x, weight) + bias
         return out
 
     def forward(self, x, id):

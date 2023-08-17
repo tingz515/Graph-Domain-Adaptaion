@@ -91,11 +91,12 @@ class ConcatDataset(Dataset):
             s += l
         return r
 
-    def __init__(self, datasets):
+    def __init__(self, datasets, domain_id=0):
         super(ConcatDataset, self).__init__()
         assert len(datasets) > 0, 'datasets should not be an empty iterable'
         self.datasets = list(datasets)
         self.cumulative_sizes = self.cumsum(self.datasets)
+        self.domain_id = domain_id
 
     def __len__(self):
         return self.cumulative_sizes[-1]
@@ -122,11 +123,12 @@ https://github.com/thuml/CDAN/tree/master/pytorch
 
 
 class ImageList(Dataset):
-    def __init__(self, image_root, image_list_root, dataset, domain_label, dataset_name, split='train', transform=None,
+    def __init__(self, image_root, image_list_root, dataset, domain_label, dataset_name, domain_id, split='train', transform=None,
                  sample_masks=None, pseudo_labels=None, use_cgct_mask=False):
         self.image_root = image_root
         self.dataset = dataset  # name of the domain
         self.dataset_name = dataset_name  # name of whole dataset
+        self.domain_id = domain_id
         self.transform = transform
         self.loader = self._rgb_loader
         self.sample_masks = sample_masks
