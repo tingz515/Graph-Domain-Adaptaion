@@ -172,25 +172,19 @@ class ResNetFc(nn.Module):
         self.new_cls = new_cls
         self.use_hyper = use_hyper
         if new_cls:
+            self.__in_features = model_resnet.fc.in_features
             if self.use_bottleneck:
+                self.__in_features = bottleneck_dim
                 if DEBUG:
                     self.bottleneck = nn.Linear(256, bottleneck_dim)
                 else:
                     self.bottleneck = nn.Linear(model_resnet.fc.in_features, bottleneck_dim)
                 self.bottleneck.apply(init_weights)
-                if use_hyper:
-                    self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, bottleneck_dim, class_num)
-                else:
-                    self.fc = nn.Linear(bottleneck_dim, class_num)
-                self.fc.apply(init_weights)
-                self.__in_features = bottleneck_dim
+            if use_hyper:
+                self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, self.__in_features, class_num)
             else:
-                if use_hyper:
-                    self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, model_resnet.fc.in_features, class_num)
-                else:
-                    self.fc = nn.Linear(model_resnet.fc.in_features, class_num)
-                self.fc.apply(init_weights)
-                self.__in_features = model_resnet.fc.in_features
+                self.fc = nn.Linear(self.__in_features, class_num)
+            self.fc.apply(init_weights)
         else:
             self.fc = model_resnet.fc
             self.__in_features = model_resnet.fc.in_features

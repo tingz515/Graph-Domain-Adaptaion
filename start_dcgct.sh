@@ -7,7 +7,7 @@ data_root="/root/datasets"
 output_dir="~/results/ZTing/$time_tag"
 # source="webcam"
 # target="dslr_amazon"
-use_hyper=1
+use_hyper=0
 
 time=1.0
 for source in webcam dslr amazon
