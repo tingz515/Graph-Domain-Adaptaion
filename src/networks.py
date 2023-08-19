@@ -5,6 +5,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 
+
+DEBUG = False
+
 class HyperLinear(nn.Module):
     def __init__(
         self,
@@ -160,14 +163,20 @@ class ResNetFc(nn.Module):
         self.layer3 = model_resnet.layer3
         self.layer4 = model_resnet.layer4
         self.avgpool = model_resnet.avgpool
-        self.feature_layers = nn.Sequential(self.conv1, self.bn1, self.relu, self.maxpool, self.layer1,
-                                            self.layer2, self.layer3, self.layer4, self.avgpool)
+        if DEBUG:
+            self.feature_layers = nn.Sequential(self.conv1, self.bn1, self.relu, self.maxpool, self.layer1, self.avgpool)
+        else:
+            self.feature_layers = nn.Sequential(self.conv1, self.bn1, self.relu, self.maxpool, self.layer1,
+                                                self.layer2, self.layer3, self.layer4, self.avgpool)
         self.use_bottleneck = use_bottleneck
         self.new_cls = new_cls
         self.use_hyper = use_hyper
         if new_cls:
             if self.use_bottleneck:
-                self.bottleneck = nn.Linear(model_resnet.fc.in_features, bottleneck_dim)
+                if DEBUG:
+                    self.bottleneck = nn.Linear(256, bottleneck_dim)
+                else:
+                    self.bottleneck = nn.Linear(model_resnet.fc.in_features, bottleneck_dim)
                 self.bottleneck.apply(init_weights)
                 if use_hyper:
                     self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, bottleneck_dim, class_num)
@@ -176,7 +185,10 @@ class ResNetFc(nn.Module):
                 self.fc.apply(init_weights)
                 self.__in_features = bottleneck_dim
             else:
-                self.fc = nn.Linear(model_resnet.fc.in_features, class_num)
+                if use_hyper:
+                    self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, model_resnet.fc.in_features, class_num)
+                else:
+                    self.fc = nn.Linear(model_resnet.fc.in_features, class_num)
                 self.fc.apply(init_weights)
                 self.__in_features = model_resnet.fc.in_features
         else:
@@ -213,4 +225,10 @@ class ResNetFc(nn.Module):
                 ]
         else:
             parameter_list = [{'params': self.parameters(), 'lr_mult': 1, 'decay_mult': 2}]
+        return parameter_list
+
+    def get_fc_parameters(self):
+        parameter_list = [
+            {'params': self.fc.embed.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+        ]
         return parameter_list

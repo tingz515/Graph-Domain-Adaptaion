@@ -25,11 +25,12 @@ parser.add_argument('--save_models', action='store_true', help='whether to save 
 # dataset args
 parser.add_argument('--dataset', type=str, default='office31', choices=['office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
-parser.add_argument('--source', default='webcam', help='name of source domain')
-parser.add_argument('--target', default='dslr_amazon', help='names of target domains')
+parser.add_argument('--source', default='amazon', help='name of source domain')
+parser.add_argument('--target', default='dslr_webcam', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
+parser.add_argument('--target_iters', type=int, default=1000, help='number of fine-tuning iters on pseudo target')
 parser.add_argument('--source_iters', type=int, default=10, help='number of source pre-train iters')
 parser.add_argument('--adapt_iters', type=int, default=30, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
@@ -47,6 +48,7 @@ parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial l
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
 parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
+# other args
 parser.add_argument("--alg_type", type=str, default=os.path.basename(__file__).rstrip(".py").lstrip("main_"))
 
 
@@ -104,9 +106,14 @@ def main(args):
         log_str = '==> Finishing the adaptation on {}!\n'.format(max_inherit_domain)
         utils.write_logs(config, log_str)
 
-        ######### Stage 3: obtain the target pseudo labels and upgrade source domain ##########
+        ######### Stage 3: obtain the target pseudo labels and upgrade source and target domain ##########
         trainer.upgrade_source_domain(config, max_inherit_domain, dsets,
                                       dset_loaders, base_network, classifier_gnn)
+
+        print(f"Dataset: {max_inherit_domain}, {len(dsets['target_train'][max_inherit_domain])}")
+        trainer.upgrade_target_domain(config, max_inherit_domain, dsets,
+                                      dset_loaders, base_network, classifier_gnn)
+        print(f"Dataset: {max_inherit_domain}, {len(dsets['target_train'][max_inherit_domain])}")
 
         ######### Sage 1: recompute target domain inheritability/similarity ###########
         # remove already considered domain
@@ -115,12 +122,25 @@ def main(args):
         if len(temp_test_loaders.keys()) > 0:
             max_inherit_domain = trainer.select_closest_domain(config, base_network,
                                                                        classifier_gnn, temp_test_loaders)
-    ######### Step 3: fine-tuning stage ###########
+
+    ######### Step 3: fine-tuning stage on source ###########
     log_str = '==> Step 3: Fine-tuning on pseudo-source dataset ...'
     utils.write_logs(config, log_str)
     config['source_iters'] = config['finetune_iters']
     base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders)
-    log_str = 'Finished training and evaluation!'
+    log_str = 'Finished training and evaluation on source!'
+    utils.write_logs(config, log_str)
+
+    ######### Step 4: fine-tuning stage on target ###########
+    log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
+    utils.write_logs(config, log_str)
+    for name in config['data']['target']['name']:
+        log_str = f'==> Starting fine-tuning on {name} ...'
+        utils.write_logs(config, log_str)
+        base_network, classifier_gnn = trainer.train_target(config, base_network, classifier_gnn, dset_loaders, name)
+        log_str = f'==> Finishing fine-tuning on {name} ...'
+        utils.write_logs(config, log_str)
+    log_str = 'Finished training and evaluation on target!'
     utils.write_logs(config, log_str)
 
     # save models

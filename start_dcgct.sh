@@ -1,5 +1,6 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
+# time_tag="20230818$2"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 data_root="/root/datasets"
@@ -9,7 +10,7 @@ output_dir="~/results/ZTing/$time_tag"
 use_hyper=1
 
 time=1.0
-for source in webcam dslr # amazon
+for source in webcam dslr amazon
 do
     if [ $(echo $source | grep "webcam")x != ""x ];then
         target=dslr_amazon
@@ -23,7 +24,7 @@ do
 
     seed=2023
 
-    for i in $(seq 1)
+    for i in $(seq 2)
     do
         tag=$(date "+%Y%m%d%H%M%S")
         python src/main_dcgct.py \

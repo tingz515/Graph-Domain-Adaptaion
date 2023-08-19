@@ -47,6 +47,8 @@ def build_config(args):
         'random_dim': args.rand_proj,
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
     }
+    if args.alg_type == "dcgct_v2":
+        config['target_iters'] = args.target_iters
     # preprocessing params
     config['prep'] = {
         'test_10crop': False,

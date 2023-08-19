@@ -179,6 +179,53 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
     return base_network, classifier_gnn
 
 
+def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name):
+    # define loss functions
+    ce_criterion = nn.CrossEntropyLoss()
+
+    # configure optimizer
+    optimizer_config = config['optimizer']
+    parameter_list = base_network.get_fc_parameters()
+    optimizer = optimizer_config['type'](parameter_list, **(optimizer_config['optim_params']))
+
+    # configure learning rates
+    param_lr = []
+    for param_group in optimizer.param_groups:
+        param_lr.append(param_group['lr'])
+    schedule_param = optimizer_config['lr_param']
+
+    # start train loop
+    base_network.train()
+    classifier_gnn.train()
+    len_train_target = len(dset_loaders["target_train"][domain_name])
+    domain_id_target = torch.tensor([dset_loaders["target_train"][domain_name].dataset.domain_id], dtype=torch.long).to(DEVICE)
+    for i in range(config['target_iters']):
+        optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+        optimizer.zero_grad()
+
+        # get input data
+        if i % len_train_target == 0:
+            iter_target = iter(dset_loaders["target_train"][domain_name])
+        batch_target = iter_target.next()
+        inputs_target, labels_target = batch_target['img'].to(DEVICE), batch_target['target'].to(DEVICE)
+
+        # make forward pass for encoder and mlp head
+        _, logits_mlp = base_network(inputs_target, domain_id_target)
+        loss = ce_criterion(logits_mlp, labels_target)
+        loss.backward()
+        optimizer.step()
+
+        # printout train loss
+        if i % 20 == 0 or i == config['target_iters'] - 1:
+            log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f' % (i, config['target_iters'], loss.item())
+            utils.write_logs(config, log_str)
+        # evaluate network every test_interval
+        if i % config['test_interval'] == config['test_interval'] - 1:
+            evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+
+    return base_network, classifier_gnn
+
+
 def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit_domain):
     # define loss functions
     criterion_gedge = nn.BCELoss(reduction='mean')
@@ -416,6 +463,34 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     dset_loaders['source'] = DataLoader(dsets['source'], batch_size=config['data']['source']['batch_size'] * 2,
                                         shuffle=True, num_workers=config['num_workers'],
                                         drop_last=True, pin_memory=False)
+
+
+def upgrade_target_domain(config, max_inherit_domain, dsets, dset_loaders, base_network, classifier_gnn):
+    # set networks to eval mode
+    base_network.eval()
+    classifier_gnn.eval()
+    test_res = eval_domain(config, dset_loaders["target_train"][max_inherit_domain], base_network, classifier_gnn)
+
+    # print out logs for domain
+    log_str = 'Updating pseudo labels of dataset: %s\tPseudo-label acc: %.4f (%d/%d)\t Total samples: %d' \
+                % (max_inherit_domain, test_res['pseudo_label_acc'] * 100., test_res['correct_pseudo_labels'],
+                    test_res['total_pseudo_labels'], len(dsets['target_train'][max_inherit_domain]))
+    config["out_file"].write(str(log_str) + '\n\n')
+    config["out_file"].flush()
+    print(log_str + '\n')
+
+    # update pseudo labels
+    domain_id = dsets['target_train'][max_inherit_domain].domain_id
+    target_dataset_new = ImageList(image_root=config['data_root'],
+                                    image_list_root=config['data']['image_list_root'],
+                                    dataset=max_inherit_domain, transform=config['prep']['target'],
+                                    domain_label=1, domain_id=domain_id, dataset_name=config['dataset'], split='train',
+                                    sample_masks=test_res['sample_masks'], pseudo_labels=test_res['pred_cls'])
+    dsets["target_train"][max_inherit_domain] = target_dataset_new
+    target_bs = dset_loaders['target_train'][max_inherit_domain].batch_size
+    dset_loaders['target_train'][max_inherit_domain] = DataLoader(dataset=target_dataset_new,
+                                                            batch_size=target_bs, shuffle=True,
+                                                            num_workers=config['num_workers'], drop_last=True)
 
 
 def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier_gnn, curri_iter):
