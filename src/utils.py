@@ -47,8 +47,9 @@ def build_config(args):
         'random_dim': args.rand_proj,
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
     }
-    if args.alg_type == "dcgct_v2":
+    if args.alg_type in ['hyper_dcgct']:
         config['target_iters'] = args.target_iters
+        config['same_id_adapt'] = args.same_id_adapt
     # preprocessing params
     config['prep'] = {
         'test_10crop': False,
@@ -105,6 +106,7 @@ def build_config(args):
             'batch_size': args.test_batch,
         },
     }
+    config["domain_id"] = {name: i + 1 for i, name in enumerate(args.target.split("_"))}
     # set number of classes
     if config['dataset'] == 'office31':
         config['encoder']['params']['class_num'] = 31
@@ -166,16 +168,17 @@ def build_data(config):
 
     # target dataloader
     for i, dset_name in enumerate(sorted(data_config['target']['name'])):
+        domain_id = 0 if config['same_id_adapt'] else config["domain_id"][dset_name]
         # create train and test datasets for a target domain
         dsets['target_train'][dset_name] = ImageList(image_root=config['data_root'],
                                                      image_list_root=data_config['image_list_root'],
                                                      dataset=dset_name, transform=config['prep']['target'],
-                                                     domain_label=1, domain_id=i + 1, dataset_name=config['dataset'], split='train',
+                                                     domain_label=1, domain_id=domain_id, dataset_name=config['dataset'], split='train',
                                                      use_cgct_mask=config['use_cgct_mask'])
         dsets['target_test'][dset_name] = ImageList(image_root=config['data_root'],
                                                     image_list_root=data_config['image_list_root'],
                                                     dataset=dset_name, transform=config['prep']['test'],
-                                                    domain_label=1, domain_id=i + 1, dataset_name=config['dataset'], split='test',
+                                                    domain_label=1, domain_id=domain_id, dataset_name=config['dataset'], split='test',
                                                     use_cgct_mask=config['use_cgct_mask'])
         # create train and test dataloaders for a target domain
         dset_loaders['target_train'][dset_name] = DataLoader(dataset=dsets['target_train'][dset_name],

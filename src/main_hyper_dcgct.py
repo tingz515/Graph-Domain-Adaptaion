@@ -9,6 +9,8 @@ import utils
 import trainer
 
 
+#TODO 0 for source and target before step 4 1, 2.. for target in step 4
+
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Graph Curriculum Domain Adaptaion')
@@ -30,15 +32,16 @@ parser.add_argument('--target', default='dslr_webcam', help='names of target dom
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
-parser.add_argument('--target_iters', type=int, default=1000, help='number of fine-tuning iters on pseudo target')
-parser.add_argument('--source_iters', type=int, default=10, help='number of source pre-train iters')
-parser.add_argument('--adapt_iters', type=int, default=30, help='number of iters for a curriculum adaptation')
+parser.add_argument('--target_iters', type=int, default=100, help='number of fine-tuning iters on pseudo target')
+parser.add_argument('--source_iters', type=int, default=100, help='number of source pre-train iters')
+parser.add_argument('--adapt_iters', type=int, default=300, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
-parser.add_argument('--test_interval', type=int, default=500, help='interval of two continuous test phase')
+parser.add_argument('--test_interval', type=int, default=100, help='interval of two continuous test phase')
 parser.add_argument('--output_dir', type=str, default='~/results', help='output directory')
-parser.add_argument('--source_batch', type=int, default=32)
-parser.add_argument('--target_batch', type=int, default=32)
-parser.add_argument('--test_batch', type=int, default=64)
+parser.add_argument('--source_batch', type=int, default=16)
+parser.add_argument('--target_batch', type=int, default=16)
+parser.add_argument('--test_batch', type=int, default=32)
+parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
@@ -123,6 +126,7 @@ def main(args):
             max_inherit_domain = trainer.select_closest_domain(config, base_network,
                                                                        classifier_gnn, temp_test_loaders)
 
+
     ######### Step 3: fine-tuning stage on source ###########
     log_str = '==> Step 3: Fine-tuning on pseudo-source dataset ...'
     utils.write_logs(config, log_str)
@@ -134,13 +138,29 @@ def main(args):
     ######### Step 4: fine-tuning stage on target ###########
     log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
     utils.write_logs(config, log_str)
+
+
+    for name in config['data']['target']['name']:
+        log_str = f'==> Change domian id on {name} ...'
+        utils.write_logs(config, log_str)
+        dsets["target_test"][name].set_domain_id(config["domain_id"][name])
+        dset_loaders["target_test"][name].dataset.set_domain_id(config["domain_id"][name])
+
     for name in config['data']['target']['name']:
         log_str = f'==> Starting fine-tuning on {name} ...'
         utils.write_logs(config, log_str)
         base_network, classifier_gnn = trainer.train_target(config, base_network, classifier_gnn, dset_loaders, name)
         log_str = f'==> Finishing fine-tuning on {name} ...'
         utils.write_logs(config, log_str)
-    log_str = 'Finished training and evaluation on target!'
+
+    ######### Step 5: progressive inference stage on target ###########
+    log_str = '==> Step 5: Progressive Inference on target dataset ...'
+    utils.write_logs(config, log_str)
+
+    log_str = 'Starting progressive inference on target!'
+    utils.write_logs(config, log_str)
+    trainer.evaluate_progressive(0, config, base_network, classifier_gnn, dset_loaders["target_test"], dset_loaders["source"])
+    log_str = 'Finished progressive inference on target!'
     utils.write_logs(config, log_str)
 
     # save models

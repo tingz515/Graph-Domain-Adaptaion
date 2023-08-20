@@ -192,3 +192,6 @@ class ImageList(Dataset):
 
     def __len__(self):
         return len(self.imgs)
+
+    def set_domain_id(self, id):
+        self.domain_id = id

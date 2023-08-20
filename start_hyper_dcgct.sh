@@ -27,7 +27,7 @@ do
     for i in $(seq 2)
     do
         tag=$(date "+%Y%m%d%H%M%S")
-        python src/main_dcgct_v2.py \
+        python src/main_hyper_dcgct.py \
                 --method 'CDAN' \
                 --encoder 'ResNet50' \
                 --dataset 'office31' \
@@ -35,6 +35,10 @@ do
                 --source_iters 200 \
                 --adapt_iters 3000 \
                 --finetune_iters 15000 \
+                --test_interval 500 \
+                --source_batch 32 \
+                --target_batch 32 \
+                --test_batch 16 \
                 --lambda_node 0.3 \
                 --use_hyper $use_hyper \
                 --seed $seed \
@@ -43,7 +47,7 @@ do
                 --data_root $data_root \
                 --output_dir $output_dir \
                 > ~/logs/${source}_${seed}_${tag}.out 2> ~/logs/${source}_${seed}_${tag}.err &
-                echo "run $cuda_id $task $seed $tag"
+                echo "run $cuda_id $source $seed $tag"
                 sleep ${time}
                 let seed=$seed+1
     done

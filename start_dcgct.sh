@@ -42,7 +42,7 @@ do
                 --data_root $data_root \
                 --output_dir $output_dir \
                 > ~/logs/${source}_${seed}_${tag}.out 2> ~/logs/${source}_${seed}_${tag}.err &
-                echo "run $cuda_id $task $seed $tag"
+                echo "run $cuda_id $source $seed $tag"
                 sleep ${time}
                 let seed=$seed+1
     done
