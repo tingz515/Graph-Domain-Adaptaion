@@ -8,6 +8,101 @@ import utils
 from main_dcgct import DEVICE
 
 
+def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_test_dset_dict, source_loader):
+    base_network.eval()
+    classifier_gnn.eval()
+    len_train_source = len(source_loader)
+    mlp_t_accuracy_list, mlp_s_accuracy_list, gnn_accuracy_list = [], [], []
+    progressive_mlp_accuracy_list, progressive_gnn_accuracy_list = [], []
+    for dset_name, test_loader in target_test_dset_dict.items():
+        logits_mlp_t_all, logits_mlp_s_all, logits_gnn_all, confidences_all, labels_all = [], [], [], [], []
+        with torch.no_grad():
+            iter_test = iter(test_loader)
+            domain_id = torch.tensor([test_loader.dataset.domain_id], dtype=torch.long).to(DEVICE)
+            print(f"name: {test_loader.dataset.dataset}, id: {test_loader.dataset.domain_id}")
+            for i in range(len(test_loader)):
+                data = iter_test.next()
+                inputs = data['img'].to(DEVICE)
+                # forward pass
+                feature, logits_mlp_t, logits_mlp_s= base_network.progressive_forward(inputs, domain_id)
+
+                if i % len_train_source == 0:
+                    iter_source = iter(source_loader)
+
+                batch_source = iter_source.next()
+                inputs_source = batch_source['img'].to(DEVICE)
+                features_source = base_network.get_feature(inputs_source)
+                features_all = torch.cat((features_source, feature), dim=0)
+                logits_gnn, _ = classifier_gnn(features_all)
+                logits_gnn = logits_gnn[-len(inputs): ]
+
+                logits_mlp_t_all.append(logits_mlp_t.cpu())
+                logits_mlp_s_all.append(logits_mlp_s.cpu())
+                logits_gnn_all.append(logits_gnn.cpu())
+                labels_all.append(data['target'])
+                confidences_all.append(nn.Softmax(dim=1)(logits_mlp_t_all[-1]).max(1)[0])
+
+        logits_mlp_t = torch.cat(logits_mlp_t_all, dim=0)
+        logits_mlp_s = torch.cat(logits_mlp_s_all, dim=0)
+        logits_gnn = torch.cat(logits_gnn_all, dim=0)
+        confidences = torch.cat(confidences_all, dim=0)
+        labels = torch.cat(labels_all, dim=0)
+
+        # predict class labels
+        _, predict_mlp_t = torch.max(logits_mlp_t, 1)
+        _, predict_mlp_s = torch.max(logits_mlp_s, 1)
+        _, predict_gnn = torch.max(logits_gnn, 1)
+        mlp_t_accuracy = torch.sum(predict_mlp_t == labels).item() / len(labels)
+        mlp_s_accuracy = torch.sum(predict_mlp_s == labels).item() / len(labels)
+        gnn_accuracy = torch.sum(predict_gnn == labels).item() / len(labels)
+
+        # progressive predict class labels
+        progressive_index = torch.where(confidences < config['threshold'])[0]
+        progressive_ratio = len(progressive_index) / len(labels)
+        progressive_mlp_acc = torch.sum(predict_mlp_s[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+        progressive_gnn_acc = torch.sum(predict_gnn[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+
+        # print out test accuracy for domain
+        log_str = 'Dataset:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f'\
+                  % (dset_name, mlp_t_accuracy * 100, mlp_s_accuracy * 100, gnn_accuracy * 100)
+        config['out_file'].write(log_str + '\n')
+        config['out_file'].flush()
+        print(log_str)
+        log_str = 'Dataset:%s\tProgressive Ratio %.4f\tProgressive Accuracy source mlp %.4f\tProgressive Accuracy gnn %.4f'\
+                  % (dset_name, progressive_ratio, progressive_mlp_acc * 100, progressive_gnn_acc * 100)
+        config['out_file'].write(log_str + '\n')
+        config['out_file'].flush()
+        print(log_str)
+
+        # collect info
+        mlp_t_accuracy_list.append(mlp_t_accuracy)
+        mlp_s_accuracy_list.append(mlp_s_accuracy)
+        gnn_accuracy_list.append(gnn_accuracy)
+        progressive_mlp_accuracy_list.append(progressive_mlp_acc)
+        progressive_gnn_accuracy_list.append(progressive_gnn_acc)
+
+    # print out domains averaged accuracy
+    mlp_t_accuracy_avg = sum(mlp_t_accuracy_list) / len(mlp_t_accuracy_list)
+    mlp_s_accuracy_avg = sum(mlp_s_accuracy_list) / len(mlp_s_accuracy_list)
+    gnn_accuracy_avg = sum(gnn_accuracy_list) / len(gnn_accuracy_list)
+    log_str = 'iter: %d, Avg Accuracy MLP Target Classifier: %.4f, Avg Accuracy MLP Source Classifier: %.4f, Avg Accuracy GNN classifier: %.4f'\
+              % (n_iter, mlp_t_accuracy_avg * 100., mlp_s_accuracy_avg * 100., gnn_accuracy_avg * 100.)
+    config['out_file'].write(log_str + '\n')
+    config['out_file'].flush()
+    print(log_str)
+
+    progressive_mlp_accuracy_avg = sum(progressive_mlp_accuracy_list) / len(progressive_mlp_accuracy_list)
+    progressive_gnn_accuracy_avg = sum(progressive_gnn_accuracy_list) / len(progressive_gnn_accuracy_list)
+    log_str = 'iter: %d, Avg Accuracy Progressive MLP Classifier: %.4f,Avg Accuracy GNN classifier: %.4f'\
+              % (n_iter, progressive_mlp_accuracy_avg * 100., progressive_gnn_accuracy_avg * 100.)
+    config['out_file'].write(log_str + '\n')
+    config['out_file'].flush()
+    print(log_str)
+
+    base_network.train()
+    classifier_gnn.train()
+
+
 def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
     base_network.eval()
     classifier_gnn.eval()
@@ -41,6 +136,7 @@ def eval_domain(config, test_loader, base_network, classifier_gnn):
     with torch.no_grad():
         iter_test = iter(test_loader)
         domain_id = torch.tensor([test_loader.dataset.domain_id], dtype=torch.long).to(DEVICE)
+        print(f"name: {test_loader.dataset.dataset}, id: {test_loader.dataset.domain_id}")
         for i in range(len(test_loader)):
             data = iter_test.next()
             inputs = data['img'].to(DEVICE)
@@ -466,21 +562,28 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
 
 
 def upgrade_target_domain(config, max_inherit_domain, dsets, dset_loaders, base_network, classifier_gnn):
+    domain_id = 0 if config['same_id_adapt'] else config["domain_id"][max_inherit_domain]
+    target_dataset = ImageList(image_root=config['data_root'], image_list_root=config['data']['image_list_root'],
+                               dataset=max_inherit_domain, transform=config['prep']['test'], domain_label=0, domain_id=domain_id,
+                               dataset_name=config['dataset'], split='train')
+    target_loader = DataLoader(target_dataset, batch_size=config['data']['test']['batch_size'],
+                               num_workers=config['num_workers'], drop_last=False)
     # set networks to eval mode
     base_network.eval()
     classifier_gnn.eval()
-    test_res = eval_domain(config, dset_loaders["target_train"][max_inherit_domain], base_network, classifier_gnn)
+    test_res = eval_domain(config, target_loader, base_network, classifier_gnn)
 
     # print out logs for domain
-    log_str = 'Updating pseudo labels of dataset: %s\tPseudo-label acc: %.4f (%d/%d)\t Total samples: %d' \
-                % (max_inherit_domain, test_res['pseudo_label_acc'] * 100., test_res['correct_pseudo_labels'],
-                    test_res['total_pseudo_labels'], len(dsets['target_train'][max_inherit_domain]))
+    log_str = 'Adding pseudo labels of dataset: %s\tPseudo-label acc: %.4f (%d/%d)\t Total samples: %d' \
+              % (max_inherit_domain, test_res['pseudo_label_acc'] * 100., test_res['correct_pseudo_labels'],
+                 test_res['total_pseudo_labels'], len(target_loader.dataset))
     config["out_file"].write(str(log_str) + '\n\n')
     config["out_file"].flush()
     print(log_str + '\n')
 
     # update pseudo labels
-    domain_id = dsets['target_train'][max_inherit_domain].domain_id
+    # domain_id = dsets['target_train'][max_inherit_domain].domain_id
+    domain_id = config["domain_id"][max_inherit_domain]
     target_dataset_new = ImageList(image_root=config['data_root'],
                                     image_list_root=config['data']['image_list_root'],
                                     dataset=max_inherit_domain, transform=config['prep']['target'],
