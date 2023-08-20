@@ -201,6 +201,24 @@ class ResNetFc(nn.Module):
             y = self.fc(x)
         return x, y
 
+    def progressive_forward(self, x, id=None):
+        x = self.feature_layers(x)
+        x = x.view(x.size(0), -1)
+        if self.use_bottleneck and self.new_cls:
+            x = self.bottleneck(x)
+            x = F.relu(x)
+        y_t = self.fc(x, id)
+        y_s = self.fc(x, torch.tensor([0], dtype=torch.long).to(id.device))
+        return x, y_t, y_s
+
+    def get_feature(self, x):
+        x = self.feature_layers(x)
+        x = x.view(x.size(0), -1)
+        if self.use_bottleneck and self.new_cls:
+            x = self.bottleneck(x)
+            x = F.relu(x)
+        return x
+
     def output_num(self):
         return self.__in_features
 
