@@ -23,7 +23,7 @@ parser.add_argument('--hyper_hidden_dim', type=int, default=128)
 parser.add_argument('--hyper_hidden_num', type=int, default=1)
 parser.add_argument('--rand_proj', type=int, default=1024, help='random projection dimension')
 parser.add_argument('--edge_features', type=int, default=128, help='graph edge features dimension')
-parser.add_argument('--save_models', action='store_true', help='whether to save encoder, mlp and gnn models')
+parser.add_argument('--save_models', action='store_false', help='whether to save encoder, mlp and gnn models')
 # dataset args
 parser.add_argument('--dataset', type=str, default='office31', choices=['office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
@@ -37,7 +37,7 @@ parser.add_argument('--source_iters', type=int, default=100, help='number of sou
 parser.add_argument('--adapt_iters', type=int, default=300, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
 parser.add_argument('--test_interval', type=int, default=100, help='interval of two continuous test phase')
-parser.add_argument('--output_dir', type=str, default='~/results', help='output directory')
+parser.add_argument('--output_dir', type=str, default='~/results/ZTing', help='output directory')
 parser.add_argument('--source_batch', type=int, default=16)
 parser.add_argument('--target_batch', type=int, default=16)
 parser.add_argument('--test_batch', type=int, default=32)
@@ -65,7 +65,7 @@ def main(args):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-    assert args.source not in args.target, 'Source domain can not be one of the target domains'
+    assert args.source not in args.target.split("_"), 'Source domain can not be one of the target domains'
 
     # create train configurations
     config = utils.build_config(args)
@@ -113,11 +113,6 @@ def main(args):
         trainer.upgrade_source_domain(config, max_inherit_domain, dsets,
                                       dset_loaders, base_network, classifier_gnn)
 
-        print(f"Dataset: {max_inherit_domain}, {len(dsets['target_train'][max_inherit_domain])}")
-        trainer.upgrade_target_domain(config, max_inherit_domain, dsets,
-                                      dset_loaders, base_network, classifier_gnn)
-        print(f"Dataset: {max_inherit_domain}, {len(dsets['target_train'][max_inherit_domain])}")
-
         ######### Sage 1: recompute target domain inheritability/similarity ###########
         # remove already considered domain
         del temp_test_loaders[max_inherit_domain]
@@ -132,25 +127,31 @@ def main(args):
     utils.write_logs(config, log_str)
     config['source_iters'] = config['finetune_iters']
     base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders)
-    log_str = 'Finished training and evaluation on source!'
+    log_str = 'Finished training and evaluation on source!\n'
     utils.write_logs(config, log_str)
 
     ######### Step 4: fine-tuning stage on target ###########
     log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
     utils.write_logs(config, log_str)
 
-
     for name in config['data']['target']['name']:
+        log_str = f'==> Update target domian label on {name} ...'
+        utils.write_logs(config, log_str)
+
+        utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
+        trainer.upgrade_target_domain(config, name, dsets, dset_loaders, base_network, classifier_gnn)
+        utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
+
         log_str = f'==> Change domian id on {name} ...'
         utils.write_logs(config, log_str)
         dsets["target_test"][name].set_domain_id(config["domain_id"][name])
         dset_loaders["target_test"][name].dataset.set_domain_id(config["domain_id"][name])
 
     for name in config['data']['target']['name']:
-        log_str = f'==> Starting fine-tuning on {name} ...'
+        log_str = f'==> Starting fine-tuning on {name}'
         utils.write_logs(config, log_str)
         base_network, classifier_gnn = trainer.train_target(config, base_network, classifier_gnn, dset_loaders, name)
-        log_str = f'==> Finishing fine-tuning on {name} ...'
+        log_str = f'==> Finishing fine-tuning on {name}\n'
         utils.write_logs(config, log_str)
 
     ######### Step 5: progressive inference stage on target ###########
@@ -165,8 +166,8 @@ def main(args):
 
     # save models
     if args.save_models:
-        torch.save(base_network.cpu().state_dict(), os.path.join(config['output_path'], 'base_network.pth.tar'))
-        torch.save(classifier_gnn.cpu().state_dict(), os.path.join(config['output_path'], 'classifier_gnn.pth.tar'))
+        torch.save(base_network.cpu().state_dict(), os.path.join(config['output_path'], 'base_network.pth'))
+        torch.save(classifier_gnn.cpu().state_dict(), os.path.join(config['output_path'], 'classifier_gnn.pth'))
 
 
 if __name__ == "__main__":

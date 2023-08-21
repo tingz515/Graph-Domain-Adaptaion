@@ -38,8 +38,7 @@ do
                 --test_interval 500 \
                 --source_batch 32 \
                 --target_batch 32 \
-                --test_batch 16 \
-                --lambda_node 0.3 \
+                --test_batch 64 \
                 --use_hyper $use_hyper \
                 --seed $seed \
                 --source $source \

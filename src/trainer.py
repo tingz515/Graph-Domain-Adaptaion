@@ -19,7 +19,6 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
         with torch.no_grad():
             iter_test = iter(test_loader)
             domain_id = torch.tensor([test_loader.dataset.domain_id], dtype=torch.long).to(DEVICE)
-            print(f"name: {test_loader.dataset.dataset}, id: {test_loader.dataset.domain_id}")
             for i in range(len(test_loader)):
                 data = iter_test.next()
                 inputs = data['img'].to(DEVICE)
@@ -63,13 +62,13 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
         progressive_gnn_acc = torch.sum(predict_gnn[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
 
         # print out test accuracy for domain
-        log_str = 'Dataset:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f'\
-                  % (dset_name, mlp_t_accuracy * 100, mlp_s_accuracy * 100, gnn_accuracy * 100)
+        log_str = 'Dataset:%s ID:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f'\
+                  % (dset_name, test_loader.dataset.domain_id, mlp_t_accuracy * 100, mlp_s_accuracy * 100, gnn_accuracy * 100)
         config['out_file'].write(log_str + '\n')
         config['out_file'].flush()
         print(log_str)
-        log_str = 'Dataset:%s\tProgressive Ratio %.4f\tProgressive Accuracy source mlp %.4f\tProgressive Accuracy gnn %.4f'\
-                  % (dset_name, progressive_ratio, progressive_mlp_acc * 100, progressive_gnn_acc * 100)
+        log_str = 'Dataset:%s ID:%s\tProgressive Ratio %.4f\tProgressive Accuracy source mlp %.4f\tProgressive Accuracy gnn %.4f'\
+                  % (dset_name, test_loader.dataset.domain_id, progressive_ratio, progressive_mlp_acc * 100, progressive_gnn_acc * 100)
         config['out_file'].write(log_str + '\n')
         config['out_file'].flush()
         print(log_str)
@@ -113,8 +112,8 @@ def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
         mlp_accuracy_list.append(mlp_accuracy)
         gnn_accuracy_list.append(gnn_accuracy)
         # print out test accuracy for domain
-        log_str = 'Dataset:%s\tTest Accuracy mlp %.4f\tTest Accuracy gnn %.4f'\
-                  % (dset_name, mlp_accuracy * 100, gnn_accuracy * 100)
+        log_str = 'Dataset:%s ID:%s\tTest Accuracy mlp %.4f\tTest Accuracy gnn %.4f'\
+                  % (dset_name, test_loader.dataset.domain_id, mlp_accuracy * 100, gnn_accuracy * 100)
         config['out_file'].write(log_str + '\n')
         config['out_file'].flush()
         print(log_str)
@@ -136,8 +135,7 @@ def eval_domain(config, test_loader, base_network, classifier_gnn):
     with torch.no_grad():
         iter_test = iter(test_loader)
         domain_id = torch.tensor([test_loader.dataset.domain_id], dtype=torch.long).to(DEVICE)
-        print(f"name: {test_loader.dataset.dataset}, id: {test_loader.dataset.domain_id}")
-        for i in range(len(test_loader)):
+        for _ in range(len(test_loader)):
             data = iter_test.next()
             inputs = data['img'].to(DEVICE)
             # forward pass
@@ -292,7 +290,6 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
 
     # start train loop
     base_network.train()
-    classifier_gnn.train()
     len_train_target = len(dset_loaders["target_train"][domain_name])
     domain_id_target = torch.tensor([dset_loaders["target_train"][domain_name].dataset.domain_id], dtype=torch.long).to(DEVICE)
     for i in range(config['target_iters']):
