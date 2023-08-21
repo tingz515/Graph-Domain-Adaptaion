@@ -32,6 +32,7 @@ parser.add_argument('--target', default='dslr_webcam', help='names of target dom
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
+parser.add_argument('--target_inner_iters', type=int, default=1, help='number of inner steps in train_target')
 parser.add_argument('--target_iters', type=int, default=100, help='number of fine-tuning iters on pseudo target')
 parser.add_argument('--source_iters', type=int, default=100, help='number of source pre-train iters')
 parser.add_argument('--adapt_iters', type=int, default=300, help='number of iters for a curriculum adaptation')
@@ -150,7 +151,8 @@ def main(args):
     for name in config['data']['target']['name']:
         log_str = f'==> Starting fine-tuning on {name}'
         utils.write_logs(config, log_str)
-        base_network, classifier_gnn = trainer.train_target(config, base_network, classifier_gnn, dset_loaders, name)
+        train_target = trainer.train_target if config['target_inner_iters'] == 1 else trainer.train_target_v2
+        base_network, classifier_gnn = train_target(config, base_network, classifier_gnn, dset_loaders, name)
         log_str = f'==> Finishing fine-tuning on {name}\n'
         utils.write_logs(config, log_str)
 

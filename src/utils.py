@@ -48,7 +48,8 @@ def build_config(args):
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
     }
     if args.alg_type in ['hyper_dcgct']:
-        config['target_iters'] = args.target_iters
+        config['target_inner_iters'] = args.target_inner_iters
+        config['target_iters'] = args.target_iters // args.target_inner_iters
         config['same_id_adapt'] = args.same_id_adapt
     # preprocessing params
     config['prep'] = {

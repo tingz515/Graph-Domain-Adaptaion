@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import torch
 import torch.nn as nn
 import networks
@@ -306,6 +307,80 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
         _, logits_mlp = base_network(inputs_target, domain_id_target)
         loss = ce_criterion(logits_mlp, labels_target)
         loss.backward()
+        optimizer.step()
+
+        # printout train loss
+        if i % 20 == 0 or i == config['target_iters'] - 1:
+            log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f' % (i, config['target_iters'], loss.item())
+            utils.write_logs(config, log_str)
+        # evaluate network every test_interval
+        if i % config['test_interval'] == config['test_interval'] - 1:
+            evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+
+    return base_network, classifier_gnn
+
+
+def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_name):
+    # configure optimizer for hyper
+    optimizer_config = config['optimizer']
+    schedule_param = optimizer_config['lr_param']
+    parameter_list = base_network.get_fc_parameters()
+    optimizer = optimizer_config['type'](parameter_list, **(optimizer_config['optim_params']))
+
+    # start train loop
+    base_network.eval()
+    len_train_target = len(dset_loaders["target_train"][domain_name])
+    domain_id_target = torch.tensor([dset_loaders["target_train"][domain_name].dataset.domain_id], dtype=torch.long).to(DEVICE)
+    iter_target = iter(dset_loaders["target_train"][domain_name])
+    for i in range(config['target_iters']):
+        # define loss functions for inner loop
+        ce_criterion = nn.CrossEntropyLoss()
+
+        # init new MLP for inner loop and load weights from hyper
+        weights = base_network.fc.get_param(domain_id_target)
+        target_fc = nn.Linear(base_network.bottleneck.out_features, base_network.fc.out_features).to(DEVICE)
+        target_fc.load_state_dict(weights)
+
+        # init inner optimizer
+        inner_optim = optimizer_config['type'](
+            [{'params': target_fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}], **(optimizer_config['optim_params'])
+        )
+
+        # storing theta_i for later calculating delta theta
+        inner_state = OrderedDict({k: tensor.data for k, tensor in weights.items()})
+
+        for j in range(config['target_inner_iters']):
+            inner_optim = utils.inv_lr_scheduler(inner_optim, j - 1, **schedule_param)
+            inner_optim.zero_grad()
+
+            if (i * config['target_inner_iters'] + j) % len_train_target == 0:
+                iter_target = iter(dset_loaders["target_train"][domain_name])
+            batch_target = iter_target.next()
+            inputs_target, labels_target = batch_target['img'].to(DEVICE), batch_target['target'].to(DEVICE)
+
+            feature = base_network.get_feature(inputs_target)
+            logits_mlp = target_fc(feature)
+
+            loss = ce_criterion(logits_mlp, labels_target)
+            loss.backward()
+            nn.utils.clip_grad_norm_(target_fc.parameters(), 50)
+            inner_optim.step()
+
+        optimizer = utils.inv_lr_scheduler(optimizer, i - 1, **schedule_param)
+        optimizer.zero_grad()
+
+        # calculating delta theta
+        final_state = target_fc.state_dict()
+        delta_theta = OrderedDict({k: inner_state[k] - final_state[k] for k in weights.keys()})
+
+        # calculating phi gradient
+        hnet_grads = torch.autograd.grad(
+            list(weights.values()), base_network.fc.embed, grad_outputs=list(delta_theta.values())
+        )
+
+        # update hnet weights
+        base_network.fc.embed.grad = hnet_grads[0]
+        nn.utils.clip_grad_norm_(base_network.fc.embed, 50)
         optimizer.step()
 
         # printout train loss
