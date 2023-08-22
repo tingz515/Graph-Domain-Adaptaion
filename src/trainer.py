@@ -59,8 +59,11 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
         # progressive predict class labels
         progressive_index = torch.where(confidences < config['threshold'])[0]
         progressive_ratio = len(progressive_index) / len(labels)
-        progressive_mlp_acc = torch.sum(predict_mlp_s[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
-        progressive_gnn_acc = torch.sum(predict_gnn[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+        if len(progressive_index) > 0:
+            progressive_mlp_acc = torch.sum(predict_mlp_s[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+            progressive_gnn_acc = torch.sum(predict_gnn[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+        else:
+            progressive_mlp_acc, progressive_gnn_acc = 0, 0
 
         # print out test accuracy for domain
         log_str = 'Dataset:%s ID:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f'\
