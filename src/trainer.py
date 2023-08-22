@@ -19,7 +19,7 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
         logits_mlp_t_all, logits_mlp_s_all, logits_gnn_all, confidences_all, labels_all = [], [], [], [], []
         with torch.no_grad():
             iter_test = iter(test_loader)
-            domain_id = torch.tensor([test_loader.dataset.domain_id], dtype=torch.long).to(DEVICE)
+            domain_id = test_loader.dataset.domain_id
             for i in range(len(test_loader)):
                 data = iter_test.next()
                 inputs = data['img'].to(DEVICE)
@@ -64,12 +64,12 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
 
         # print out test accuracy for domain
         log_str = 'Dataset:%s ID:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f'\
-                  % (dset_name, test_loader.dataset.domain_id, mlp_t_accuracy * 100, mlp_s_accuracy * 100, gnn_accuracy * 100)
+                  % (dset_name, domain_id, mlp_t_accuracy * 100, mlp_s_accuracy * 100, gnn_accuracy * 100)
         config['out_file'].write(log_str + '\n')
         config['out_file'].flush()
         print(log_str)
         log_str = 'Dataset:%s ID:%s\tProgressive Ratio %.4f\tProgressive Accuracy source mlp %.4f\tProgressive Accuracy gnn %.4f'\
-                  % (dset_name, test_loader.dataset.domain_id, progressive_ratio, progressive_mlp_acc * 100, progressive_gnn_acc * 100)
+                  % (dset_name, domain_id, progressive_ratio, progressive_mlp_acc * 100, progressive_gnn_acc * 100)
         config['out_file'].write(log_str + '\n')
         config['out_file'].flush()
         print(log_str)
@@ -135,7 +135,7 @@ def eval_domain(config, test_loader, base_network, classifier_gnn):
     logits_mlp_all, logits_gnn_all, confidences_gnn_all, labels_all = [], [], [], []
     with torch.no_grad():
         iter_test = iter(test_loader)
-        domain_id = torch.tensor([test_loader.dataset.domain_id], dtype=torch.long).to(DEVICE)
+        domain_id = test_loader.dataset.domain_id
         for _ in range(len(test_loader)):
             data = iter_test.next()
             inputs = data['img'].to(DEVICE)
@@ -235,7 +235,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
     base_network.train()
     classifier_gnn.train()
     len_train_source = len(dset_loaders["source"])
-    domain_id = torch.tensor([0], dtype=torch.long).to(DEVICE)
+    domain_id = 0
     for i in range(config['source_iters']):
         optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
@@ -292,7 +292,7 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
     # start train loop
     base_network.train()
     len_train_target = len(dset_loaders["target_train"][domain_name])
-    domain_id_target = torch.tensor([dset_loaders["target_train"][domain_name].dataset.domain_id], dtype=torch.long).to(DEVICE)
+    domain_id_target = dset_loaders["target_train"][domain_name].dataset.domain_id
     for i in range(config['target_iters']):
         optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
@@ -330,7 +330,7 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
     # start train loop
     base_network.eval()
     len_train_target = len(dset_loaders["target_train"][domain_name])
-    domain_id_target = torch.tensor([dset_loaders["target_train"][domain_name].dataset.domain_id], dtype=torch.long).to(DEVICE)
+    domain_id_target = dset_loaders["target_train"][domain_name].dataset.domain_id
     iter_target = iter(dset_loaders["target_train"][domain_name])
     for i in range(config['target_iters']):
         # define loss functions for inner loop
@@ -421,8 +421,8 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
     # start train loop
     len_train_source = len(dset_loaders['source'])
     len_train_target = len(dset_loaders['target_train'][max_inherit_domain])
-    domain_id_source = torch.tensor([0], dtype=torch.long).to(DEVICE)
-    domain_id_target = torch.tensor([dset_loaders['target_train'][max_inherit_domain].dataset.domain_id], dtype=torch.long).to(DEVICE)
+    domain_id_source = 0
+    domain_id_target = dset_loaders['target_train'][max_inherit_domain].dataset.domain_id
     # set nets in train mode
     base_network.train()
     classifier_gnn.train()
@@ -516,8 +516,8 @@ def adapt_target_cgct(config, base_network, classifier_gnn, dset_loaders, random
     # start train loop
     len_train_source = len(dset_loaders['source'])
     len_train_target = len(dset_loaders['target_train'])
-    domain_id_source = torch.tensor([0], dtype=torch.long).to(DEVICE)
-    domain_id_target = torch.tensor([dset_loaders['target_train'].dataset.domain_id], dtype=torch.long).to(DEVICE)
+    domain_id_source = 0
+    domain_id_target = dset_loaders['target_train'].dataset.domain_id
     # set nets in train mode
     base_network.train()
     classifier_gnn.train()

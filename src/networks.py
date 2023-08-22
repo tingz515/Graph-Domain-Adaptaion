@@ -1,9 +1,11 @@
+from collections import OrderedDict
+from torchvision import models
+
 import math
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import models
 
 
 DEBUG = False
@@ -22,11 +24,10 @@ class HyperLinear(nn.Module):
         self.in_features = feature_dim
         self.out_features = output_dim
 
-        input_dim = ndomains
-        output_dim = feature_dim * output_dim + output_dim
-        # self.embed = nn.Embedding(input_dim, embedding_dim)
-        self.embed = nn.Sequential(nn.Embedding(input_dim, embedding_dim), nn.ReLU())
+        # self.embed = nn.Embedding(ndomains, embedding_dim)
+        self.embed = nn.Parameter(torch.normal(0, 1, size=(ndomains, embedding_dim)), requires_grad=True)
         # Do it needs ReLU after Embedding ?
+        output_dim = feature_dim * output_dim + output_dim
         dims = [embedding_dim] + [hidden_dim] * hidden_num
         model = []
         for i in range(len(dims) - 1):
@@ -48,12 +49,29 @@ class HyperLinear(nn.Module):
         return out
 
     def forward(self, x, id):
-        embed = self.embed(id)
+        # id = torch.tensor([id], dtype=torch.long).to(self.embed.device)
+        # embed = self.embed(id)
+        embed = self.embed[id]
+        embed = F.relu(embed)
         param = self.model(embed)
         if self.in_features == 0:
             return param
         out = self.base_forward(x, param)
         return out
+
+    def get_param(self, id):
+        # id = torch.tensor([id], dtype=torch.long).to(self.embed.device)
+        # embed = self.embed(id)
+        embed = self.embed[id]
+        embed = F.relu(embed)
+        param = self.model(embed)
+        weight, bias = torch.split(
+            param, [self.in_features * self.out_features, self.out_features], dim=-1
+        )
+        weight = weight.reshape(self.out_features, self.in_features)
+        bias = bias.reshape(self.out_features)
+        return OrderedDict({"weight": weight, "bias": bias})
+
 
 
 def init_weights(m):
@@ -241,6 +259,6 @@ class ResNetFc(nn.Module):
 
     def get_fc_parameters(self):
         parameter_list = [
-            {'params': self.fc.embed.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+            {'params': self.fc.embed, 'lr_mult': 10, 'decay_mult': 2}
         ]
         return parameter_list
