@@ -226,7 +226,7 @@ class ResNetFc(nn.Module):
             x = self.bottleneck(x)
             x = F.relu(x)
         y_t = self.fc(x, id)
-        y_s = self.fc(x, torch.tensor([0], dtype=torch.long).to(id.device))
+        y_s = self.fc(x, 0)
         return x, y_t, y_s
 
     def get_feature(self, x):

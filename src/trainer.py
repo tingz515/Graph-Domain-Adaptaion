@@ -57,7 +57,7 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
         gnn_accuracy = torch.sum(predict_gnn == labels).item() / len(labels)
 
         # progressive predict class labels
-        progressive_index = torch.where(confidences < config['threshold'])[0]
+        progressive_index = torch.where(confidences < config['threshold_progressive'])[0]
         progressive_ratio = len(progressive_index) / len(labels)
         if len(progressive_index) > 0:
             progressive_mlp_acc = torch.sum(predict_mlp_s[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
@@ -271,7 +271,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
                   config['source_iters'], mlp_loss.item(), gnn_loss.item(), edge_loss.item())
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
-        if i % config['test_interval'] == config['test_interval'] - 1:
+        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
             evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
 
     return base_network, classifier_gnn
@@ -317,7 +317,7 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
             log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f' % (i, config['target_iters'], loss.item())
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
-        if i % config['test_interval'] == config['test_interval'] - 1:
+        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
             evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
 
     return base_network, classifier_gnn
@@ -391,7 +391,7 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
             log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f' % (i, config['target_iters'], loss.item())
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
-        if i % config['test_interval'] == config['test_interval'] - 1:
+        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
             evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
 
     return base_network, classifier_gnn

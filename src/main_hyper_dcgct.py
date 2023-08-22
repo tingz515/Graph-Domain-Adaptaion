@@ -49,6 +49,7 @@ parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
 parser.add_argument('--lambda_edge', default=1., type=float, help='edge loss weight')
 parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
+parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
 parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
@@ -131,6 +132,11 @@ def main(args):
     log_str = 'Finished training and evaluation on source!\n'
     utils.write_logs(config, log_str)
 
+    # save models
+    if args.save_models:
+        torch.save(base_network.cpu().state_dict(), os.path.join(config['output_path'], 'base_network_source.pth'))
+        torch.save(classifier_gnn.cpu().state_dict(), os.path.join(config['output_path'], 'classifier_gnn_source.pth'))
+
     ######### Step 4: fine-tuning stage on target ###########
     log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
     utils.write_logs(config, log_str)
@@ -156,6 +162,11 @@ def main(args):
         log_str = f'==> Finishing fine-tuning on {name}\n'
         utils.write_logs(config, log_str)
 
+    # save models
+    if args.save_models:
+        torch.save(base_network.cpu().state_dict(), os.path.join(config['output_path'], 'base_network_target.pth'))
+        torch.save(classifier_gnn.cpu().state_dict(), os.path.join(config['output_path'], 'classifier_gnn_target.pth'))
+
     ######### Step 5: progressive inference stage on target ###########
     log_str = '==> Step 5: Progressive Inference on target dataset ...'
     utils.write_logs(config, log_str)
@@ -165,11 +176,6 @@ def main(args):
     trainer.evaluate_progressive(0, config, base_network, classifier_gnn, dset_loaders["target_test"], dset_loaders["source"])
     log_str = 'Finished progressive inference on target!'
     utils.write_logs(config, log_str)
-
-    # save models
-    if args.save_models:
-        torch.save(base_network.cpu().state_dict(), os.path.join(config['output_path'], 'base_network.pth'))
-        torch.save(classifier_gnn.cpu().state_dict(), os.path.join(config['output_path'], 'classifier_gnn.pth'))
 
 
 if __name__ == "__main__":
