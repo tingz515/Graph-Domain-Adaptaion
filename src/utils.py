@@ -52,6 +52,8 @@ def build_config(args):
         config['target_iters'] = args.target_iters // args.target_inner_iters
         config['same_id_adapt'] = args.same_id_adapt
         config['threshold_progressive'] = args.threshold_progressive
+        config['threshold_target'] = args.threshold_target
+        config['threshold_source'] = args.threshold_source
     # preprocessing params
     config['prep'] = {
         'test_10crop': False,

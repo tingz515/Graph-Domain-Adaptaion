@@ -35,7 +35,7 @@ parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTin
 parser.add_argument('--target_inner_iters', type=int, default=1, help='number of inner steps in train_target')
 parser.add_argument('--target_iters', type=int, default=100, help='number of fine-tuning iters on pseudo target')
 parser.add_argument('--source_iters', type=int, default=100, help='number of source pre-train iters')
-parser.add_argument('--adapt_iters', type=int, default=300, help='number of iters for a curriculum adaptation')
+parser.add_argument('--adapt_iters', type=int, default=100, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
 parser.add_argument('--test_interval', type=int, default=100, help='interval of two continuous test phase')
 parser.add_argument('--output_dir', type=str, default='~/results/ZTing', help='output directory')
@@ -50,7 +50,9 @@ parser.add_argument('--lambda_edge', default=1., type=float, help='edge loss wei
 parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
 parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
-parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
+parser.add_argument('--threshold_target', type=float, default=0.7, help='threshold for pseudo labels in update target domain')
+parser.add_argument('--threshold_source', type=float, default=0.9, help='threshold for pseudo labels in update source domain')
+parser.add_argument('--threshold', type=float, default=0.9, help='threshold for pseudo labels')
 parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
@@ -134,8 +136,8 @@ def main(args):
 
     # save models
     if args.save_models:
-        torch.save(base_network.cpu().state_dict(), os.path.join(config['output_path'], 'base_network_source.pth'))
-        torch.save(classifier_gnn.cpu().state_dict(), os.path.join(config['output_path'], 'classifier_gnn_source.pth'))
+        torch.save(base_network.state_dict(), os.path.join(config['output_path'], 'base_network_source.pth'))
+        torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], 'classifier_gnn_source.pth'))
 
     ######### Step 4: fine-tuning stage on target ###########
     log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
@@ -164,8 +166,8 @@ def main(args):
 
     # save models
     if args.save_models:
-        torch.save(base_network.cpu().state_dict(), os.path.join(config['output_path'], 'base_network_target.pth'))
-        torch.save(classifier_gnn.cpu().state_dict(), os.path.join(config['output_path'], 'classifier_gnn_target.pth'))
+        torch.save(base_network.state_dict(), os.path.join(config['output_path'], 'base_network_target.pth'))
+        torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], 'classifier_gnn_target.pth'))
 
     ######### Step 5: progressive inference stage on target ###########
     log_str = '==> Step 5: Progressive Inference on target dataset ...'

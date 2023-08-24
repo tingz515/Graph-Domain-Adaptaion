@@ -134,7 +134,7 @@ def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
     classifier_gnn.train()
 
 
-def eval_domain(config, test_loader, base_network, classifier_gnn):
+def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=None):
     logits_mlp_all, logits_gnn_all, confidences_gnn_all, labels_all = [], [], [], []
     with torch.no_grad():
         iter_test = iter(test_loader)
@@ -167,7 +167,8 @@ def eval_domain(config, test_loader, base_network, classifier_gnn):
     mlp_accuracy = torch.sum(predict_mlp == labels).item() / len(labels)
     gnn_accuracy = torch.sum(predict_gnn == labels).item() / len(labels)
     # compute mask for high confident samples
-    sample_masks_bool = (confidences_gnn > config['threshold'])
+    threshold = threshold or config['threshold']
+    sample_masks_bool = (confidences_gnn > threshold)
     sample_masks_idx = torch.nonzero(sample_masks_bool, as_tuple=True)[0].numpy()
     # compute accuracy of pseudo labels
     total_pseudo_labels = len(sample_masks_idx)
@@ -611,7 +612,7 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     # set networks to eval mode
     base_network.eval()
     classifier_gnn.eval()
-    test_res = eval_domain(config, target_loader, base_network, classifier_gnn)
+    test_res = eval_domain(config, target_loader, base_network, classifier_gnn, config['threshold_source'])
 
     # print out logs for domain
     log_str = 'Adding pseudo labels of dataset: %s\tPseudo-label acc: %.4f (%d/%d)\t Total samples: %d' \
@@ -637,16 +638,15 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
 
 
 def upgrade_target_domain(config, max_inherit_domain, dsets, dset_loaders, base_network, classifier_gnn):
-    domain_id = 0 if config['same_id_adapt'] else config["domain_id"][max_inherit_domain]
     target_dataset = ImageList(image_root=config['data_root'], image_list_root=config['data']['image_list_root'],
-                               dataset=max_inherit_domain, transform=config['prep']['test'], domain_label=0, domain_id=domain_id,
+                               dataset=max_inherit_domain, transform=config['prep']['test'], domain_label=0, domain_id=0,
                                dataset_name=config['dataset'], split='train')
     target_loader = DataLoader(target_dataset, batch_size=config['data']['test']['batch_size'],
                                num_workers=config['num_workers'], drop_last=False)
     # set networks to eval mode
     base_network.eval()
     classifier_gnn.eval()
-    test_res = eval_domain(config, target_loader, base_network, classifier_gnn)
+    test_res = eval_domain(config, target_loader, base_network, classifier_gnn, config=['threshold_target'])
 
     # print out logs for domain
     log_str = 'Adding pseudo labels of dataset: %s\tPseudo-label acc: %.4f (%d/%d)\t Total samples: %d' \
