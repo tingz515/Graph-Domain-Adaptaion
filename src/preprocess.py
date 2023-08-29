@@ -175,6 +175,8 @@ class ImageList(Dataset):
             img = self.loader(os.path.join(self.image_root, self.dataset, path))
         elif self.dataset_name == 'office31':
             img = self.loader(os.path.join(self.image_root, self.dataset, path))
+        elif self.dataset_name == 'MTRS':
+            img = self.loader(os.path.join(self.image_root, "imgs", path))
         if self.transform is not None:
             img = self.transform(img)
 

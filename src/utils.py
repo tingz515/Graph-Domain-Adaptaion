@@ -124,6 +124,9 @@ def build_config(args):
     elif config['dataset'] == 'pacs':
         config['encoder']['params']['class_num'] = 7
         config['data']['image_list_root'] = 'data/pacs/'
+    elif config['dataset'] == 'MTRS':
+        config['encoder']['params']['class_num'] = 10
+        config['data']['image_list_root'] = 'data/MTRS/'
     else:
         raise ValueError('Dataset cannot be recognized. Please define your own dataset here.')
 
@@ -169,6 +172,7 @@ def build_data(config):
                                 domain_label=0, domain_id=0, dataset_name=config['dataset'], split='train')
     dset_loaders['source'] = DataLoader(dsets['source'], batch_size=train_bs, shuffle=True,
                                         num_workers=config['num_workers'], drop_last=True, pin_memory=False)
+    print(f"source: {len(dsets['source'])}")
 
     # target dataloader
     for i, dset_name in enumerate(sorted(data_config['target']['name'])):
@@ -184,6 +188,7 @@ def build_data(config):
                                                     dataset=dset_name, transform=config['prep']['test'],
                                                     domain_label=1, domain_id=domain_id, dataset_name=config['dataset'], split='test',
                                                     use_cgct_mask=config['use_cgct_mask'])
+        print(f"target: train {len(dsets['target_train'][dset_name])} test {len(dsets['target_test'][dset_name])}")
         # create train and test dataloaders for a target domain
         dset_loaders['target_train'][dset_name] = DataLoader(dataset=dsets['target_train'][dset_name],
                                                              batch_size=target_bs, shuffle=True,

@@ -23,7 +23,7 @@ parser.add_argument('--rand_proj', type=int, default=1024, help='random projecti
 parser.add_argument('--edge_features', type=int, default=128, help='graph edge features dimension')
 parser.add_argument('--save_models', action='store_true', help='whether to save encoder, mlp and gnn models')
 # dataset args
-parser.add_argument('--dataset', type=str, default='office31', choices=['office31', 'office-home', 'pacs',
+parser.add_argument('--dataset', type=str, default='office31', choices=['MTRS', 'office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
 parser.add_argument('--source', default='webcam', help='name of source domain')
 parser.add_argument('--target', default='dslr_amazon', help='names of target domains')
