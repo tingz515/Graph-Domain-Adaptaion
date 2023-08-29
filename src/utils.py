@@ -53,7 +53,7 @@ def build_config(args):
         config['same_id_adapt'] = args.same_id_adapt
         config['threshold_progressive'] = args.threshold_progressive
         config['threshold_target'] = args.threshold_target
-        config['threshold_source'] = args.threshold_source
+
     # preprocessing params
     config['prep'] = {
         'test_10crop': False,
@@ -172,7 +172,7 @@ def build_data(config):
 
     # target dataloader
     for i, dset_name in enumerate(sorted(data_config['target']['name'])):
-        domain_id = 0 if config['same_id_adapt'] else config["domain_id"][dset_name]
+        domain_id = 0 if config.get('same_id_adapt', True) else config["domain_id"][dset_name]
         # create train and test datasets for a target domain
         dsets['target_train'][dset_name] = ImageList(image_root=config['data_root'],
                                                      image_list_root=data_config['image_list_root'],

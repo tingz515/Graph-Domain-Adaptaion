@@ -272,7 +272,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
                   config['source_iters'], mlp_loss.item(), gnn_loss.item(), edge_loss.item())
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
-        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
+        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['source_iters'] - 1:
             evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
 
     return base_network, classifier_gnn
@@ -495,7 +495,7 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
             )
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
-        if i % config['test_interval'] == config['test_interval'] - 1:
+        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['adapt_iters'] - 1:
             evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
 
     return base_network, classifier_gnn
@@ -612,7 +612,7 @@ def upgrade_source_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     # set networks to eval mode
     base_network.eval()
     classifier_gnn.eval()
-    test_res = eval_domain(config, target_loader, base_network, classifier_gnn, config['threshold_source'])
+    test_res = eval_domain(config, target_loader, base_network, classifier_gnn)
 
     # print out logs for domain
     log_str = 'Adding pseudo labels of dataset: %s\tPseudo-label acc: %.4f (%d/%d)\t Total samples: %d' \
@@ -646,7 +646,7 @@ def upgrade_target_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     # set networks to eval mode
     base_network.eval()
     classifier_gnn.eval()
-    test_res = eval_domain(config, target_loader, base_network, classifier_gnn, config=['threshold_target'])
+    test_res = eval_domain(config, target_loader, base_network, classifier_gnn, config['threshold_target'])
 
     # print out logs for domain
     log_str = 'Adding pseudo labels of dataset: %s\tPseudo-label acc: %.4f (%d/%d)\t Total samples: %d' \

@@ -51,8 +51,7 @@ parser.add_argument('--lambda_node', default=0.3, type=float, help='node classif
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
 parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
 parser.add_argument('--threshold_target', type=float, default=0.7, help='threshold for pseudo labels in update target domain')
-parser.add_argument('--threshold_source', type=float, default=0.9, help='threshold for pseudo labels in update source domain')
-parser.add_argument('--threshold', type=float, default=0.9, help='threshold for pseudo labels')
+parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
 parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
