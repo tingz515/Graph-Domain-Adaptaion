@@ -49,9 +49,8 @@ class HyperLinear(nn.Module):
         return out
 
     def forward(self, x, id):
-        # id = torch.tensor([id], dtype=torch.long).to(self.embed.device)
-        # embed = self.embed(id)
-        embed = self.embed[id]
+        embed = F.normalize(self.embed)[id]
+        # embed = self.embed[id]
         embed = F.relu(embed)
         param = self.model(embed)
         if self.in_features == 0:
@@ -60,9 +59,8 @@ class HyperLinear(nn.Module):
         return out
 
     def get_param(self, id):
-        # id = torch.tensor([id], dtype=torch.long).to(self.embed.device)
-        # embed = self.embed(id)
-        embed = self.embed[id]
+        embed = F.normalize(self.embed)[id]
+        # embed = self.embed[id]
         embed = F.relu(embed)
         param = self.model(embed)
         weight, bias = torch.split(
