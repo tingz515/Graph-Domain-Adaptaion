@@ -85,7 +85,7 @@ def build_config(args):
              'weight_decay': args.wd,
              'nesterov': True,
              },
-        'lr_type': 'inv',
+        'lr_type': args.lr_type,
         'lr_param': {
             'lr': args.lr,
             'gamma': 0.001,

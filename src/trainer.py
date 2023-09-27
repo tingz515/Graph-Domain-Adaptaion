@@ -241,7 +241,8 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
     len_train_source = len(dset_loaders["source"])
     domain_id = 0
     for i in range(config['source_iters']):
-        optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+        if optimizer_config['lr_type'] == "inv":
+            optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
 
         # get input data
@@ -298,7 +299,8 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
     len_train_target = len(dset_loaders["target_train"][domain_name])
     domain_id_target = dset_loaders["target_train"][domain_name].dataset.domain_id
     for i in range(config['target_iters']):
-        optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+        if optimizer_config['lr_type'] == "inv":
+            optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
 
         # get input data
@@ -354,7 +356,8 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
         inner_state = OrderedDict({k: tensor.data for k, tensor in weights.items()})
 
         for j in range(config['target_inner_iters']):
-            inner_optim = utils.inv_lr_scheduler(inner_optim, j - 1, **schedule_param)
+            if optimizer_config['lr_type'] == "inv":
+                inner_optim = utils.inv_lr_scheduler(inner_optim, j - 1, **schedule_param)
             inner_optim.zero_grad()
 
             if (i * config['target_inner_iters'] + j) % len_train_target == 0:
@@ -370,7 +373,8 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
             nn.utils.clip_grad_norm_(target_fc.parameters(), 50)
             inner_optim.step()
 
-        optimizer = utils.inv_lr_scheduler(optimizer, i - 1, **schedule_param)
+        if optimizer_config['lr_type'] == "inv":
+            optimizer = utils.inv_lr_scheduler(optimizer, i - 1, **schedule_param)
         optimizer.zero_grad()
 
         # calculating delta theta
@@ -433,7 +437,8 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
     adv_net.train()
     random_layer.train()
     for i in range(config['adapt_iters']):
-        optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+        if optimizer_config['lr_type'] == "inv":
+            optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
         # get input data
         if i % len_train_source == 0:
@@ -528,7 +533,8 @@ def adapt_target_cgct(config, base_network, classifier_gnn, dset_loaders, random
     adv_net.train()
     random_layer.train()
     for i in range(config['adapt_iters']):
-        optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+        if optimizer_config['lr_type'] == "inv":
+            optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
         # get input data
         if i % len_train_source == 0:
