@@ -166,7 +166,8 @@ class ResNetFc(nn.Module):
         hyper_embed_dim=64,
         hyper_hidden_dim=128,
         hyper_hidden_num=1,
-        use_hyper=True
+        use_hyper=False,
+        multi_mlp=False,
     ):
         super(ResNetFc, self).__init__()
         model_resnet = resnet_dict[resnet_name](pretrained=True)
@@ -187,6 +188,7 @@ class ResNetFc(nn.Module):
         self.use_bottleneck = use_bottleneck
         self.new_cls = new_cls
         self.use_hyper = use_hyper
+        self.multi_mlp = multi_mlp
         if new_cls:
             self.__in_features = model_resnet.fc.in_features
             if self.use_bottleneck:
@@ -198,6 +200,9 @@ class ResNetFc(nn.Module):
                 self.bottleneck.apply(init_weights)
             if use_hyper:
                 self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, self.__in_features, class_num)
+            elif multi_mlp:
+                fc = [nn.Linear(self.__in_features, class_num) for _ in range(domain_num)]
+                self.fc = nn.ModuleList(fc)
             else:
                 self.fc = nn.Linear(self.__in_features, class_num)
             self.fc.apply(init_weights)
@@ -213,6 +218,8 @@ class ResNetFc(nn.Module):
             x = F.relu(x)
         if self.use_hyper:
             y = self.fc(x, id)
+        elif self.multi_mlp:
+            y = self.fc[id](x)
         else:
             y = self.fc(x)
         return x, y
@@ -223,8 +230,12 @@ class ResNetFc(nn.Module):
         if self.use_bottleneck and self.new_cls:
             x = self.bottleneck(x)
             x = F.relu(x)
-        y_t = self.fc(x, id)
-        y_s = self.fc(x, 0)
+        if self.use_hyper:
+            y_t = self.fc(x, id)
+            y_s = self.fc(x, 0)
+        elif self.multi_mlp:
+            y_t = self.fc[id](x)
+            y_s = self.fc[0](x)
         return x, y_t, y_s
 
     def get_feature(self, x):

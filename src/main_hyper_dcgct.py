@@ -9,15 +9,12 @@ import utils
 import trainer
 
 
-#TODO 0 for source and target before step 4 1, 2.. for target in step 4
-
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Graph Curriculum Domain Adaptaion')
 # model args
 parser.add_argument('--method', type=str, default='CDAN', choices=['CDAN', 'CDAN+E'])
 parser.add_argument('--encoder', type=str, default='ResNet50', choices=['ResNet18', 'ResNet50'])
-parser.add_argument('--use_hyper', type=int, default=1, choices=[0, 1])
 parser.add_argument('--hyper_embed_dim', type=int, default=128)
 parser.add_argument('--hyper_hidden_dim', type=int, default=512)
 parser.add_argument('--hyper_hidden_num', type=int, default=1)
@@ -56,7 +53,7 @@ parser.add_argument('--threshold', type=float, default=0.7, help='threshold for 
 parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
-parser.add_argument("--alg_type", type=str, default=os.path.basename(__file__).rstrip(".py").lstrip("main_"))
+parser.add_argument("--alg_type", type=str, default=os.path.basename(__file__)[5:-3])
 
 
 def main(args):
@@ -83,7 +80,7 @@ def main(args):
     # set GNN classifier
     classifier_gnn = graph_net.ClassifierGNN(in_features=base_network.bottleneck.out_features,
                                              edge_features=config['edge_features'],
-                                             nclasses=base_network.fc.out_features,
+                                             nclasses=config['encoder']['params']['class_num'],
                                              device=DEVICE)
     classifier_gnn = classifier_gnn.to(DEVICE)
     utils.write_logs(config, str(classifier_gnn))

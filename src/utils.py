@@ -63,17 +63,24 @@ def build_config(args):
              },
     }
     # backbone params
+    encoder_params = {}
+    if args.alg_type in ['hyper_dcgct']:
+        encoder_params = {
+            "use_hyper": True,
+            "hyper_embed_dim": args.hyper_embed_dim,
+            "hyper_hidden_dim": args.hyper_hidden_dim,
+            "hyper_hidden_num": args.hyper_hidden_num,
+            }
+    elif args.alg_type in ['mlp_dcgct']:
+        encoder_params = {"multi_mlp": True}
     config['encoder'] = {
         'name': networks.ResNetFc,
         'params': {'resnet_name': args.encoder,
                    'use_bottleneck': True,
                    'bottleneck_dim': 256,
                    'new_cls': True,
-                   "hyper_embed_dim": args.hyper_embed_dim,
-                   "hyper_hidden_dim": args.hyper_hidden_dim,
-                   "hyper_hidden_num": args.hyper_hidden_num,
                    'domain_num': len(args.target.split("_")) + 1,
-                   'use_hyper': args.use_hyper,
+                   **encoder_params
                    },
     }
     # optimizer params
