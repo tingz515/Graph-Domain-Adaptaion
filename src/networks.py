@@ -267,7 +267,12 @@ class ResNetFc(nn.Module):
         return parameter_list
 
     def get_fc_parameters(self):
-        parameter_list = [
-            {'params': self.fc.embed, 'lr_mult': 10, 'decay_mult': 2}
-        ]
+        if self.use_hyper:
+            parameter_list = [
+                {'params': self.fc.embed, 'lr_mult': 10, 'decay_mult': 2}
+            ]
+        else:
+            parameter_list = [
+                {'params': self.fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+            ]
         return parameter_list
