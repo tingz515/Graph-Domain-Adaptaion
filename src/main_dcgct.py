@@ -8,6 +8,7 @@ import graph_net
 import utils
 import trainer
 
+from logger import configure
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -80,7 +81,9 @@ def main(args):
     log_str = '==> Step 1: Pre-training on the source dataset ...'
     utils.write_logs(config, log_str)
 
-    base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders)
+    logger = configure(config["output_path"], ["csv"], f"_step1")
+    base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders, logger)
+    del logger
     log_str = '==> Finished pre-training on source!\n'
     utils.write_logs(config, log_str)
 
@@ -96,8 +99,10 @@ def main(args):
         log_str = '==> Starting the adaptation on {} ...'.format(max_inherit_domain)
         utils.write_logs(config, log_str)
         ######## Stage 2: adapt to the chosen target domain having the maximum inheritance/similarity ##########
+        logger = configure(config["output_path"], ["csv"], f"_step2_{max_inherit_domain}")
         base_network, classifier_gnn = trainer.adapt_target(config, base_network, classifier_gnn,
-                                                            dset_loaders, max_inherit_domain)
+                                                            dset_loaders, max_inherit_domain, logger)
+        del logger
         log_str = '==> Finishing the adaptation on {}!\n'.format(max_inherit_domain)
         utils.write_logs(config, log_str)
 
@@ -116,7 +121,9 @@ def main(args):
     log_str = '==> Step 3: Fine-tuning on pseudo-source dataset ...'
     utils.write_logs(config, log_str)
     config['source_iters'] = config['finetune_iters']
-    base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders)
+    logger = configure(config["output_path"], ["csv"], f"_step3")
+    base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders, logger)
+    del logger
     log_str = 'Finished training and evaluation!'
     utils.write_logs(config, log_str)
 

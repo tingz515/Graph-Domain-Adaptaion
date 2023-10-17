@@ -110,11 +110,14 @@ def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
     base_network.eval()
     classifier_gnn.eval()
     mlp_accuracy_list, gnn_accuracy_list = [], []
+    mlp_accuracy_dict, gnn_accuracy_dict = {}, {}
     for dset_name, test_loader in target_test_dset_dict.items():
         test_res = eval_domain(config, test_loader, base_network, classifier_gnn)
         mlp_accuracy, gnn_accuracy = test_res['mlp_accuracy'], test_res['gnn_accuracy']
         mlp_accuracy_list.append(mlp_accuracy)
         gnn_accuracy_list.append(gnn_accuracy)
+        mlp_accuracy_dict[dset_name] = mlp_accuracy
+        gnn_accuracy_dict[dset_name] = gnn_accuracy
         # print out test accuracy for domain
         log_str = 'Dataset:%s ID:%s\tTest Accuracy mlp %.4f\tTest Accuracy gnn %.4f'\
                   % (dset_name, test_loader.dataset.domain_id, mlp_accuracy * 100, gnn_accuracy * 100)
@@ -132,6 +135,7 @@ def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
     print(log_str)
     base_network.train()
     classifier_gnn.train()
+    return mlp_accuracy_dict, gnn_accuracy_dict
 
 
 def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=None):
@@ -218,7 +222,7 @@ def select_closest_domain(config, base_network, classifier_gnn, temp_test_loader
     return max_inherit_domain_name
 
 
-def train_source(config, base_network, classifier_gnn, dset_loaders):
+def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None):
     # define loss functions
     criterion_gedge = nn.BCELoss(reduction='mean')
     ce_criterion = nn.CrossEntropyLoss()
@@ -274,12 +278,21 @@ def train_source(config, base_network, classifier_gnn, dset_loaders):
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
         if i % config['test_interval'] == config['test_interval'] - 1 or i == config['source_iters'] - 1:
-            evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            if logger is not None:
+                logger.record("iter", i)
+                for key, val in mlp_accuracy_dict.items():
+                    logger.record(f"eval/mlp/{key}", val)
+                for key, val in gnn_accuracy_dict.items():
+                    logger.record(f"eval/gnn/{key}", val)
+                logger.record("update/mlp_loss", mlp_loss.item())
+                logger.record("update/gnn_loss", gnn_loss.item())
+                logger.dump()
 
     return base_network, classifier_gnn
 
 
-def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name):
+def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name, logger=None):
     # define loss functions
     ce_criterion = nn.CrossEntropyLoss()
 
@@ -321,12 +334,20 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
         if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
-            evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            if logger is not None:
+                logger.record("iter", i)
+                for key, val in mlp_accuracy_dict.items():
+                    logger.record(f"eval/mlp/{key}", val)
+                for key, val in gnn_accuracy_dict.items():
+                    logger.record(f"eval/gnn/{key}", val)
+                logger.record("update/mlp_loss", loss.item())
+                logger.dump()
 
     return base_network, classifier_gnn
 
 
-def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_name):
+def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_name, logger=None):
     # configure optimizer for hyper
     optimizer_config = config['optimizer']
     schedule_param = optimizer_config['lr_param']
@@ -397,12 +418,20 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
         if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
-            evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            if logger is not None:
+                logger.record("iter", i)
+                for key, val in mlp_accuracy_dict.items():
+                    logger.record(f"eval/mlp/{key}", val)
+                for key, val in gnn_accuracy_dict.items():
+                    logger.record(f"eval/gnn/{key}", val)
+                logger.record("update/mlp_loss", loss.item())
+                logger.dump()
 
     return base_network, classifier_gnn
 
 
-def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit_domain):
+def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit_domain, logger=None):
     # define loss functions
     criterion_gedge = nn.BCELoss(reduction='mean')
     ce_criterion = nn.CrossEntropyLoss()
@@ -501,7 +530,18 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
         if i % config['test_interval'] == config['test_interval'] - 1 or i == config['adapt_iters'] - 1:
-            evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            if logger is not None:
+                logger.record("iter", i)
+                for key, val in mlp_accuracy_dict.items():
+                    logger.record(f"eval/mlp/{key}", val)
+                for key, val in gnn_accuracy_dict.items():
+                    logger.record(f"eval/gnn/{key}", val)
+                logger.record("update/mlp_loss", mlp_loss.item())
+                logger.record("update/gnn_loss", gnn_loss.item())
+                logger.record("update/edge_loss", edge_loss.item())
+                logger.record("update/trans_loss", trans_loss.item())
+                logger.dump()
 
     return base_network, classifier_gnn
 
