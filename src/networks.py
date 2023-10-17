@@ -25,7 +25,11 @@ class HyperLinear(nn.Module):
         self.out_features = output_dim
 
         # self.embed = nn.Embedding(ndomains, embedding_dim)
-        self.embed = nn.Parameter(torch.normal(0, 1, size=(ndomains, embedding_dim)), requires_grad=True)
+        embed = torch.normal(0, 1, size=(ndomains, embedding_dim))
+        embed /= torch.norm(embed, dim=-1, keepdim=True)
+        self.embed = nn.Parameter(embed, requires_grad=True)
+        # self.embed = nn.Parameter(torch.normal(0, 1, size=(ndomains, embedding_dim)), requires_grad=True)
+        # nn.init.xavier_normal_(self.embed)
         # Do it needs ReLU after Embedding ?
         output_dim = feature_dim * output_dim + output_dim
         dims = [embedding_dim] + [hidden_dim] * hidden_num
