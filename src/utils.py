@@ -71,6 +71,8 @@ def build_config(args):
             "hyper_hidden_dim": args.hyper_hidden_dim,
             "hyper_hidden_num": args.hyper_hidden_num,
             }
+        config["random_domain"] = args.random_domain
+        config["unable_gnn"] = args.unable_gnn
     elif args.alg_type in ['mlp_dcgct']:
         encoder_params = {"multi_mlp": True}
     config['encoder'] = {

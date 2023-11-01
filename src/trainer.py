@@ -139,7 +139,7 @@ def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
 
 
 def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=None):
-    logits_mlp_all, logits_gnn_all, confidences_gnn_all, labels_all = [], [], [], []
+    logits_mlp_all, logits_gnn_all, confidences_gnn_all, confidences_mlp_all, labels_all = [], [], [], [], []
     with torch.no_grad():
         iter_test = iter(test_loader)
         domain_id = test_loader.dataset.domain_id
@@ -158,12 +158,14 @@ def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=Non
             logits_mlp_all.append(logits_mlp.cpu())
             logits_gnn_all.append(logits_gnn.cpu())
             confidences_gnn_all.append(nn.Softmax(dim=1)(logits_gnn_all[-1]).max(1)[0])
+            confidences_mlp_all.append(nn.Softmax(dim=1)(logits_mlp_all[-1]).max(1)[0])
             labels_all.append(data['target'])
 
     # concatenate data
     logits_mlp = torch.cat(logits_mlp_all, dim=0)
     logits_gnn = torch.cat(logits_gnn_all, dim=0)
     confidences_gnn = torch.cat(confidences_gnn_all, dim=0)
+    confidences_mlp = torch.cat(confidences_mlp_all, dim=0)
     labels = torch.cat(labels_all, dim=0)
     # predict class labels
     _, predict_mlp = torch.max(logits_mlp, 1)
@@ -172,7 +174,10 @@ def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=Non
     gnn_accuracy = torch.sum(predict_gnn == labels).item() / len(labels)
     # compute mask for high confident samples
     threshold = threshold or config['threshold']
-    sample_masks_bool = (confidences_gnn > threshold)
+    if config["unable_gnn"]:
+        sample_masks_bool = (confidences_mlp > threshold)
+    else:
+        sample_masks_bool = (confidences_gnn > threshold)
     sample_masks_idx = torch.nonzero(sample_masks_bool, as_tuple=True)[0].numpy()
     # compute accuracy of pseudo labels
     total_pseudo_labels = len(sample_masks_idx)
@@ -229,8 +234,11 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
 
     # configure optimizer
     optimizer_config = config['optimizer']
-    parameter_list = base_network.get_parameters() +\
-                     [{'params': classifier_gnn.parameters(), 'lr_mult': 10, 'decay_mult': 2}]
+    if config["unable_gnn"]:
+        parameter_list = base_network.get_parameters()
+    else:
+        parameter_list = base_network.get_parameters() +\
+                        [{'params': classifier_gnn.parameters(), 'lr_mult': 10, 'decay_mult': 2}]
     optimizer = optimizer_config['type'](parameter_list, **(optimizer_config['optim_params']))
 
     # configure learning rates
@@ -267,7 +275,10 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
         edge_loss = criterion_gedge(edge_sim.masked_select(edge_mask), edge_gt.masked_select(edge_mask))
 
         # total loss and backpropagation
-        loss = mlp_loss + config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+        if config['unable_gnn']:
+            loss = mlp_loss
+        else:
+            loss = mlp_loss + config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
         loss.backward()
         optimizer.step()
 
@@ -446,8 +457,11 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
 
     # configure optimizer
     optimizer_config = config['optimizer']
-    parameter_list = base_network.get_parameters() + adv_net.get_parameters() \
-                     + [{'params': classifier_gnn.parameters(), 'lr_mult': 10, 'decay_mult': 2}]
+    if config["unable_gnn"]:
+        parameter_list = base_network.get_parameters() + adv_net.get_parameters()
+    else:
+        parameter_list = base_network.get_parameters() + adv_net.get_parameters() \
+                        + [{'params': classifier_gnn.parameters(), 'lr_mult': 10, 'decay_mult': 2}]
     optimizer = optimizer_config['type'](parameter_list, **(optimizer_config['optim_params']))
     # configure learning rates
     param_lr = []
@@ -517,8 +531,11 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
             raise ValueError('Method cannot be recognized.')
 
         # total loss and backpropagation
-        loss = config['lambda_adv'] * trans_loss + mlp_loss +\
-               config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+        if config["unable_gnn"]:
+            loss = config['lambda_adv'] * trans_loss + mlp_loss
+        else:
+            loss = config['lambda_adv'] * trans_loss + mlp_loss +\
+                config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
         loss.backward()
         optimizer.step()
         # printout train loss
