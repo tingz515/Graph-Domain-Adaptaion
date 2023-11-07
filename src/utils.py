@@ -46,6 +46,8 @@ def build_config(args):
         'lambda_adv': args.lambda_adv,
         'random_dim': args.rand_proj,
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
+        "random_domain": False,
+        "unable_gnn": False,
     }
     if args.alg_type in ['hyper_dcgct', 'mlp_dcgct']:
         config['target_inner_iters'] = args.target_inner_iters
@@ -64,7 +66,7 @@ def build_config(args):
     }
     # backbone params
     encoder_params = {}
-    if args.alg_type in ['hyper_dcgct']:
+    if args.alg_type in ['hyper_dcgct', 'hyper_plot']:
         encoder_params = {
             "use_hyper": True,
             "hyper_embed_dim": args.hyper_embed_dim,

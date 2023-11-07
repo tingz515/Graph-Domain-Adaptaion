@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import time
 import torch
 import torch.nn as nn
 import networks
@@ -323,6 +324,7 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
     len_train_target = len(dset_loaders["target_train"][domain_name])
     domain_id_target = dset_loaders["target_train"][domain_name].dataset.domain_id
     for i in range(config['target_iters']):
+        time_start = time.time()
         if optimizer_config['lr_type'] == "inv":
             optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
@@ -338,10 +340,12 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
         loss = ce_criterion(logits_mlp, labels_target)
         loss.backward()
         optimizer.step()
+        time_end = time.time()
+        time_iter = time_end - time_start
 
         # printout train loss
         if i % 20 == 0 or i == config['target_iters'] - 1:
-            log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f' % (i, config['target_iters'], loss.item())
+            log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f\t Time:%.4f' % (i, config['target_iters'], loss.item(), time_iter)
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
         if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
