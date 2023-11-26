@@ -72,6 +72,7 @@ def build_config(args):
             "hyper_embed_dim": args.hyper_embed_dim,
             "hyper_hidden_dim": args.hyper_hidden_dim,
             "hyper_hidden_num": args.hyper_hidden_num,
+            "prompt_num": args.prompt_num,
             }
         config["random_domain"] = args.random_domain
         config["unable_gnn"] = args.unable_gnn

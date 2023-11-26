@@ -172,6 +172,7 @@ class ResNetFc(nn.Module):
         hyper_hidden_num=1,
         use_hyper=False,
         multi_mlp=False,
+        prompt_num=0,
     ):
         super(ResNetFc, self).__init__()
         model_resnet = resnet_dict[resnet_name](pretrained=True)
@@ -214,7 +215,16 @@ class ResNetFc(nn.Module):
             self.fc = model_resnet.fc
             self.__in_features = model_resnet.fc.in_features
 
+        self.prompt_num = prompt_num
+        if prompt_num > 0:
+            x_prompt = torch.normal(0, 1, size=(prompt_num, 1, 3, 224, 224))
+            self.x_prompt = nn.Parameter(x_prompt, requires_grad=True)
+
     def forward(self, x, id=None):
+        if self.prompt_num > 1:
+            x = x + self.x_prompt[id]
+        elif self.prompt_num > 0:
+            x = x + self.x_prompt[0]
         x = self.feature_layers(x)
         x = x.view(x.size(0), -1)
         if self.use_bottleneck and self.new_cls:
@@ -229,6 +239,10 @@ class ResNetFc(nn.Module):
         return x, y
 
     def progressive_forward(self, x, id=None):
+        if self.prompt_num > 1:
+            x = x + self.x_prompt[id]
+        elif self.prompt_num > 0:
+            x = x + self.x_prompt[0]
         x = self.feature_layers(x)
         x = x.view(x.size(0), -1)
         if self.use_bottleneck and self.new_cls:
@@ -243,6 +257,8 @@ class ResNetFc(nn.Module):
         return x, y_t, y_s
 
     def get_feature(self, x):
+        if self.prompt_num > 0:
+            x = x + self.x_prompt[0]
         x = self.feature_layers(x)
         x = x.view(x.size(0), -1)
         if self.use_bottleneck and self.new_cls:
@@ -261,6 +277,8 @@ class ResNetFc(nn.Module):
                     {'params': self.bottleneck.parameters(), 'lr_mult': 10, 'decay_mult': 2},
                     {'params': self.fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
                 ]
+                if self.prompt_num > 0:
+                    parameter_list.append({'params': self.x_prompt, 'lr_mult': 10, 'decay_mult': 2})
             else:
                 parameter_list = [
                     {'params': self.feature_layers.parameters(), 'lr_mult': 1, 'decay_mult': 2},
@@ -275,6 +293,8 @@ class ResNetFc(nn.Module):
             parameter_list = [
                 {'params': self.fc.embed, 'lr_mult': 10, 'decay_mult': 2}
             ]
+            if self.prompt_num > 1:
+                parameter_list.append({'params': self.x_prompt, 'lr_mult': 10, 'decay_mult': 2})
         else:
             parameter_list = [
                 {'params': self.fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}

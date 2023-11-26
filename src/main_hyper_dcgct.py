@@ -19,6 +19,7 @@ parser.add_argument('--encoder', type=str, default='ResNet50', choices=['ResNet1
 parser.add_argument('--hyper_embed_dim', type=int, default=128)
 parser.add_argument('--hyper_hidden_dim', type=int, default=512)
 parser.add_argument('--hyper_hidden_num', type=int, default=1)
+parser.add_argument('--prompt_num', type=int, default=0)
 parser.add_argument('--rand_proj', type=int, default=1024, help='random projection dimension')
 parser.add_argument('--edge_features', type=int, default=128, help='graph edge features dimension')
 parser.add_argument('--save_models', action='store_false', help='whether to save encoder, mlp and gnn models')
