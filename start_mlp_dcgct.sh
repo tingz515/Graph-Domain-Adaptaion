@@ -1,6 +1,6 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
-# time_tag="20231121$2"
+# time_tag="20231101$2"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 # data_root="/root/datasets"
@@ -29,7 +29,7 @@ do
     for i in $(seq 2)
     do
         tag=$(date "+%Y%m%d%H%M%S")
-        python src/main_hyper_dcgct.py \
+        python src/main_mlp_dcgct.py \
                 --method 'CDAN' \
                 --encoder 'ResNet50' \
                 --dataset 'MTRS' \

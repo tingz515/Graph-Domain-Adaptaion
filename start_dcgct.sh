@@ -1,23 +1,25 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
-# time_tag="20230818$2"
+# time_tag="20230829$2"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
-data_root="/root/datasets"
-output_dir="~/results/ZTing/$time_tag"
-# source="webcam"
-# target="dslr_amazon"
-use_hyper=0
+# data_root="/root/datasets"
+data_root="/apdcephfs/share_1563664/ztjiaweixu/datasets/dcgct"
+output_dir="/apdcephfs/share_1563664/ztjiaweixu/zting/$time_tag"
 
 time=1.0
-for source in webcam dslr amazon
+for source in AList NList PList RList UList
 do
-    if [ $(echo $source | grep "webcam")x != ""x ];then
-        target=dslr_amazon
-    elif [ $(echo $source | grep "dslr")x != ""x ];then
-        target=webcam_amazon
-    elif [ $(echo $source | grep "amazon")x != ""x ];then
-        target=dslr_webcam
+    if [ $(echo $source | grep "AList")x != ""x ];then
+        target=NList_PList_RList_UList
+    elif [ $(echo $source | grep "NList")x != ""x ];then
+        target=AList_PList_RList_UList
+    elif [ $(echo $source | grep "PList")x != ""x ];then
+        target=AList_NList_RList_UList
+    elif [ $(echo $source | grep "RList")x != ""x ];then
+        target=AList_PList_NList_UList
+    elif [ $(echo $source | grep "UList")x != ""x ];then
+        target=AList_PList_RList_NList
     fi
     
     export CUDA_VISIBLE_DEVICES=$cuda_id
@@ -30,12 +32,14 @@ do
         python src/main_dcgct.py \
                 --method 'CDAN' \
                 --encoder 'ResNet50' \
-                --dataset 'office31' \
+                --dataset 'MTRS' \
                 --source_iters 200 \
                 --adapt_iters 3000 \
                 --finetune_iters 15000 \
-                --lambda_node 0.3 \
-                --use_hyper $use_hyper \
+                --test_interval 500 \
+                --source_batch 32 \
+                --target_batch 32 \
+                --test_batch 64 \
                 --seed $seed \
                 --source $source \
                 --target $target \
