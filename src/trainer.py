@@ -32,7 +32,7 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
 
                 batch_source = iter_source.next()
                 inputs_source = batch_source['img'].to(DEVICE)
-                features_source = base_network.get_feature(inputs_source)
+                features_source = base_network.large_feature(inputs_source)
                 features_all = torch.cat((features_source, feature), dim=0)
                 logits_gnn, _ = classifier_gnn(features_all)
                 logits_gnn = logits_gnn[-len(inputs): ]
@@ -268,6 +268,10 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
         features_source, logits_mlp = base_network(inputs_source, domain_id)
         mlp_loss = ce_criterion(logits_mlp, labels_source)
 
+        # make forward pass for light encoder
+        light_features_source = base_network.light_feature(inputs_source)
+        feature_loss = (features_source.detach() - light_features_source).pow(2).mean()
+
         # make forward pass for gnn head
         logits_gnn, edge_sim = classifier_gnn(features_source)
         gnn_loss = ce_criterion(logits_gnn, labels_source)
@@ -279,7 +283,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
         if config['unable_gnn']:
             loss = mlp_loss
         else:
-            loss = mlp_loss + config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+            loss = feature_loss + mlp_loss + config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
         loss.backward()
         optimizer.step()
 
@@ -336,7 +340,7 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
         inputs_target, labels_target = batch_target['img'].to(DEVICE), batch_target['target'].to(DEVICE)
 
         # make forward pass for encoder and mlp head
-        _, logits_mlp = base_network(inputs_target, domain_id_target)
+        _, logits_mlp = base_network.light_forward(inputs_target, domain_id_target)
         loss = ce_criterion(logits_mlp, labels_target)
         loss.backward()
         optimizer.step()
@@ -401,7 +405,7 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
             batch_target = iter_target.next()
             inputs_target, labels_target = batch_target['img'].to(DEVICE), batch_target['target'].to(DEVICE)
 
-            feature = base_network.get_feature(inputs_target)
+            feature = base_network.light_feature(inputs_target)
             logits_mlp = target_fc(feature)
 
             loss = ce_criterion(logits_mlp, labels_target)
@@ -507,6 +511,10 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         softmax_mlp = nn.Softmax(dim=1)(logits_mlp)
         mlp_loss = ce_criterion(logits_mlp_source, labels_source)
 
+        # make forward pass for light encoder
+        light_features = base_network.light_feature(torch.cat((inputs_source, inputs_target), dim=0))
+        feature_loss = (features.detach() - light_features).pow(2).mean()
+
         # *** GNN at work ***
         # make forward pass for gnn head
         logits_gnn, edge_sim = classifier_gnn(features)
@@ -538,7 +546,7 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         if config["unable_gnn"]:
             loss = config['lambda_adv'] * trans_loss + mlp_loss
         else:
-            loss = config['lambda_adv'] * trans_loss + mlp_loss +\
+            loss = config['lambda_adv'] * trans_loss + mlp_loss + feature_loss + \
                 config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
         loss.backward()
         optimizer.step()

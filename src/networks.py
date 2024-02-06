@@ -220,6 +220,42 @@ class ResNetFc(nn.Module):
             x_prompt = torch.normal(0, 1, size=(prompt_num, 1, 3, 224, 224))
             self.x_prompt = nn.Parameter(x_prompt, requires_grad=True)
 
+        self._init_light_model()
+
+    def _init_light_model(self):
+        resnet20 = resnet_dict['ResNet18'](pretrained=True)
+        conv1 = resnet20.conv1
+        bn1 = resnet20.bn1
+        relu = resnet20.relu
+        maxpool = resnet20.maxpool
+        layer1 = resnet20.layer1
+        layer2 = resnet20.layer2
+        layer3 = resnet20.layer3
+        layer4 = resnet20.layer4
+        avgpool = resnet20.avgpool
+
+        self.light_model = nn.Sequential(conv1, bn1, relu, maxpool, layer1,
+                                            layer2, layer3, layer4, avgpool)
+        self.light_fc = nn.Linear(resnet20.fc.in_features, self.bottleneck.out_features)
+        self.light_fc.apply(init_weights)
+
+    def light_feature(self, x):
+        x = self.light_model(x)
+        x = x.view(x.size(0), -1)
+        x = self.light_fc(x)
+        x = F.relu(x)
+        return x
+
+    def light_forward(self, x, id=None):
+        x = self.light_feature(x)
+        if self.use_hyper:
+            y = self.fc(x, id)
+        elif self.multi_mlp:
+            y = self.fc[id](x)
+        else:
+            y = self.fc(x)
+        return x, y
+
     def forward(self, x, id=None):
         if self.prompt_num > 1:
             x = x + self.x_prompt[id]
@@ -243,20 +279,17 @@ class ResNetFc(nn.Module):
             x = x + self.x_prompt[id]
         elif self.prompt_num > 0:
             x = x + self.x_prompt[0]
-        x = self.feature_layers(x)
-        x = x.view(x.size(0), -1)
-        if self.use_bottleneck and self.new_cls:
-            x = self.bottleneck(x)
-            x = F.relu(x)
+        x_s = self.large_feature(x)
+        x_t = self.light_feature(x)
         if self.use_hyper:
-            y_t = self.fc(x, id)
-            y_s = self.fc(x, 0)
+            y_t = self.fc(x_t, id)
+            y_s = self.fc(x_s, 0)
         elif self.multi_mlp:
-            y_t = self.fc[id](x)
-            y_s = self.fc[0](x)
-        return x, y_t, y_s
+            y_t = self.fc[id](x_t)
+            y_s = self.fc[0](x_s)
+        return x_t, y_t, y_s
 
-    def get_feature(self, x):
+    def large_feature(self, x):
         if self.prompt_num > 0:
             x = x + self.x_prompt[0]
         x = self.feature_layers(x)
@@ -286,6 +319,10 @@ class ResNetFc(nn.Module):
                 ]
         else:
             parameter_list = [{'params': self.parameters(), 'lr_mult': 1, 'decay_mult': 2}]
+        parameter_list.extend([
+            {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
+            {'params': self.light_fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+            ])
         return parameter_list
 
     def get_fc_parameters(self):
@@ -299,4 +336,8 @@ class ResNetFc(nn.Module):
             parameter_list = [
                 {'params': self.fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
             ]
+        parameter_list.extend([
+            {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
+            {'params': self.light_fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+            ])
         return parameter_list
