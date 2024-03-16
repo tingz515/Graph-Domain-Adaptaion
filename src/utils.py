@@ -31,6 +31,7 @@ def inv_lr_scheduler(optimizer, iter_num, gamma, power, lr=0.001, weight_decay=0
 
 def build_config(args):
     config = {
+        'alg_type': args.alg_type,
         'method': args.method,
         # 'ndomains': 2,
         'output_path': args.output_dir,
@@ -77,6 +78,7 @@ def build_config(args):
         config["random_domain"] = args.random_domain
         config["unable_gnn"] = args.unable_gnn
     elif args.alg_type in ['mlp_dcgct']:
+        config["random_domain"] = args.random_domain
         encoder_params = {"multi_mlp": True}
     config['encoder'] = {
         'name': networks.ResNetFc,
@@ -98,6 +100,7 @@ def build_config(args):
              'nesterov': True,
              },
         'lr_type': args.lr_type,
+        'lr_type_hyper': args.lr_type_hyper,
         'lr_param': {
             'lr': args.lr,
             'gamma': 0.001,

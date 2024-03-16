@@ -20,7 +20,7 @@ parser.add_argument('--hyper_embed_dim', type=int, default=128)
 parser.add_argument('--hyper_hidden_dim', type=int, default=512)
 parser.add_argument('--hyper_hidden_num', type=int, default=1)
 parser.add_argument('--prompt_num', type=int, default=0)
-parser.add_argument('--rand_proj', type=int, default=1024, help='random projection dimension')
+parser.add_argument('--rand_proj', type=int, default=512, help='random projection dimension')
 parser.add_argument('--edge_features', type=int, default=128, help='graph edge features dimension')
 parser.add_argument('--save_models', action='store_false', help='whether to save encoder, mlp and gnn models')
 # dataset args
@@ -45,6 +45,7 @@ parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
 parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
 # optimization args
+parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
@@ -132,7 +133,7 @@ def main(args):
             # find the maximum inheritability/similarity domain
             if len(temp_test_loaders.keys()) > 0:
                 max_inherit_domain = trainer.select_closest_domain(config, base_network,
-                                                                       classifier_gnn, temp_test_loaders)
+                                                                        classifier_gnn, temp_test_loaders)
 
 
     ######### Step 3: fine-tuning stage on source ###########

@@ -236,13 +236,13 @@ class ResNetFc(nn.Module):
 
         self.light_model = nn.Sequential(conv1, bn1, relu, maxpool, layer1,
                                             layer2, layer3, layer4, avgpool)
-        self.light_fc = nn.Linear(resnet20.fc.in_features, self.bottleneck.out_features)
-        self.light_fc.apply(init_weights)
+        self.light_bottleneck = nn.Linear(resnet20.fc.in_features, self.bottleneck.out_features)
+        self.light_bottleneck.apply(init_weights)
 
     def light_feature(self, x):
         x = self.light_model(x)
         x = x.view(x.size(0), -1)
-        x = self.light_fc(x)
+        x = self.light_bottleneck(x)
         x = F.relu(x)
         return x
 
@@ -321,7 +321,7 @@ class ResNetFc(nn.Module):
             parameter_list = [{'params': self.parameters(), 'lr_mult': 1, 'decay_mult': 2}]
         parameter_list.extend([
             {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
-            {'params': self.light_fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+            {'params': self.light_bottleneck.parameters(), 'lr_mult': 10, 'decay_mult': 2}
             ])
         return parameter_list
 
@@ -338,6 +338,6 @@ class ResNetFc(nn.Module):
             ]
         parameter_list.extend([
             {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
-            {'params': self.light_fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+            {'params': self.light_bottleneck.parameters(), 'lr_mult': 10, 'decay_mult': 2}
             ])
         return parameter_list

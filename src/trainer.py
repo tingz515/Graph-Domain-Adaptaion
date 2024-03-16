@@ -329,7 +329,7 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
     domain_id_target = dset_loaders["target_train"][domain_name].dataset.domain_id
     for i in range(config['target_iters']):
         time_start = time.time()
-        if optimizer_config['lr_type'] == "inv":
+        if optimizer_config['lr_type_hyper'] == "inv":
             optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
 
@@ -396,7 +396,7 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
         inner_state = OrderedDict({k: tensor.data for k, tensor in weights.items()})
 
         for j in range(config['target_inner_iters']):
-            if optimizer_config['lr_type'] == "inv":
+            if optimizer_config['lr_type_hyper'] == "inv":
                 inner_optim = utils.inv_lr_scheduler(inner_optim, j - 1, **schedule_param)
             inner_optim.zero_grad()
 
@@ -413,7 +413,7 @@ def train_target_v2(config, base_network, classifier_gnn, dset_loaders, domain_n
             nn.utils.clip_grad_norm_(target_fc.parameters(), 50)
             inner_optim.step()
 
-        if optimizer_config['lr_type'] == "inv":
+        if optimizer_config['lr_type_hyper'] == "inv":
             optimizer = utils.inv_lr_scheduler(optimizer, i - 1, **schedule_param)
         optimizer.zero_grad()
 
