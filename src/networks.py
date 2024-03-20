@@ -330,12 +330,16 @@ class ResNetFc(nn.Module):
             parameter_list = [
                 {'params': self.fc.embed, 'lr_mult': 10, 'decay_mult': 2}
             ]
-            if self.prompt_num > 1:
-                parameter_list.append({'params': self.x_prompt, 'lr_mult': 10, 'decay_mult': 2})
+        elif self.multi_mlp:
+            parameter_list = [
+                {'params': self.fc[1:].parameters(), 'lr_mult': 10, 'decay_mult': 2}
+            ]
         else:
             parameter_list = [
                 {'params': self.fc.parameters(), 'lr_mult': 10, 'decay_mult': 2}
             ]
+        if self.prompt_num > 1:
+            parameter_list.append({'params': self.x_prompt, 'lr_mult': 10, 'decay_mult': 2})
         parameter_list.extend([
             {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
             {'params': self.light_bottleneck.parameters(), 'lr_mult': 10, 'decay_mult': 2}
