@@ -16,6 +16,10 @@ parser = argparse.ArgumentParser(description='Graph Curriculum Domain Adaptaion'
 # model args
 parser.add_argument('--method', type=str, default='CDAN', choices=['CDAN', 'CDAN+E'])
 parser.add_argument('--encoder', type=str, default='ResNet50', choices=['ResNet18', 'ResNet50'])
+parser.add_argument('--hyper_embed_dim', type=int, default=128)
+parser.add_argument('--hyper_hidden_dim', type=int, default=512)
+parser.add_argument('--hyper_hidden_num', type=int, default=1)
+parser.add_argument('--prompt_num', type=int, default=0)
 parser.add_argument('--rand_proj', type=int, default=512, help='random projection dimension')
 parser.add_argument('--edge_features', type=int, default=128, help='graph edge features dimension')
 parser.add_argument('--save_models', action='store_false', help='whether to save encoder, mlp and gnn models')
@@ -23,7 +27,7 @@ parser.add_argument('--save_models', action='store_false', help='whether to save
 parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
 parser.add_argument('--source', default='AList', help='name of source domain')
-parser.add_argument('--target', default='NList_UList', help='names of target domains')
+parser.add_argument('--target', default='NList_PList_RList_UList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
@@ -39,6 +43,7 @@ parser.add_argument('--target_batch', type=int, default=16)
 parser.add_argument('--test_batch', type=int, default=32)
 parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
+parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
@@ -93,99 +98,6 @@ def main(args):
     base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders, logger)
     del logger
     log_str = '==> Finished pre-training on source!\n'
-    utils.write_logs(config, log_str)
-
-    log_str = '==> Step 2: Curriculum learning ...'
-    utils.write_logs(config, log_str)
-
-    ######## Stage 1: find the closest target domain ##########
-    if not config['random_domain']:
-        temp_test_loaders = dict(dset_loaders['target_test'])
-        max_inherit_domain = trainer.select_closest_domain(config, base_network, classifier_gnn, temp_test_loaders)
-
-    # iterate over all domains
-    for name in config['data']['target']['name']:
-        if config['random_domain']:
-            max_inherit_domain = name
-        log_str = '==> Starting the adaptation on {} ...'.format(max_inherit_domain)
-        utils.write_logs(config, log_str)
-        ######## Stage 2: adapt to the chosen target domain having the maximum inheritance/similarity ##########
-        logger = configure(config["output_path"], ["csv"], f"_step2_{max_inherit_domain}")
-        base_network, classifier_gnn = trainer.adapt_target(config, base_network, classifier_gnn,
-                                                            dset_loaders, max_inherit_domain, logger)
-        del logger
-        log_str = '==> Finishing the adaptation on {}!\n'.format(max_inherit_domain)
-        utils.write_logs(config, log_str)
-
-        ######### Stage 3: obtain the target pseudo labels and upgrade source and target domain ##########
-        trainer.upgrade_source_domain(config, max_inherit_domain, dsets,
-                                      dset_loaders, base_network, classifier_gnn)
-
-        ######### Sage 1: recompute target domain inheritability/similarity ###########
-        if not config['random_domain']:
-            # remove already considered domain
-            del temp_test_loaders[max_inherit_domain]
-            # find the maximum inheritability/similarity domain
-            if len(temp_test_loaders.keys()) > 0:
-                max_inherit_domain = trainer.select_closest_domain(config, base_network,
-                                                                        classifier_gnn, temp_test_loaders)
-
-
-    ######### Step 3: fine-tuning stage on source ###########
-    log_str = '==> Step 3: Fine-tuning on pseudo-source dataset ...'
-    utils.write_logs(config, log_str)
-    config['source_iters'] = config['finetune_iters']
-    logger = configure(config["output_path"], ["csv"], f"_step3")
-    base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders, logger)
-    del logger
-    log_str = 'Finished training and evaluation on source!\n'
-    utils.write_logs(config, log_str)
-
-    # save models
-    if args.save_models:
-        torch.save(base_network.state_dict(), os.path.join(config['output_path'], 'base_network_source.pth'))
-        torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], 'classifier_gnn_source.pth'))
-
-    ######### Step 4: fine-tuning stage on target ###########
-    log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
-    utils.write_logs(config, log_str)
-
-    for name in config['data']['target']['name']:
-        log_str = f'==> Update target domian label on {name} ...'
-        utils.write_logs(config, log_str)
-
-        utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
-        trainer.upgrade_target_domain(config, name, dsets, dset_loaders, base_network, classifier_gnn)
-        utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
-
-        log_str = f'==> Change domian id on {name} ...'
-        utils.write_logs(config, log_str)
-        dsets["target_test"][name].set_domain_id(config["domain_id"][name])
-        dset_loaders["target_test"][name].dataset.set_domain_id(config["domain_id"][name])
-
-    for name in config['data']['target']['name']:
-        log_str = f'==> Starting fine-tuning on {name}'
-        utils.write_logs(config, log_str)
-        logger = configure(config["output_path"], ["csv"], f"_step4_{name}")
-        train_target = trainer.train_target if config['target_inner_iters'] == 1 else trainer.train_target_v2
-        base_network, classifier_gnn = train_target(config, base_network, classifier_gnn, dset_loaders, name, logger)
-        del logger
-        log_str = f'==> Finishing fine-tuning on {name}\n'
-        utils.write_logs(config, log_str)
-
-    # save models
-    if args.save_models:
-        torch.save(base_network.state_dict(), os.path.join(config['output_path'], 'base_network_target.pth'))
-        torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], 'classifier_gnn_target.pth'))
-
-    ######### Step 5: progressive inference stage on target ###########
-    log_str = '==> Step 5: Progressive Inference on target dataset ...'
-    utils.write_logs(config, log_str)
-
-    log_str = 'Starting progressive inference on target!'
-    utils.write_logs(config, log_str)
-    trainer.evaluate_progressive(0, config, base_network, classifier_gnn, dset_loaders["target_test"], dset_loaders["source"])
-    log_str = 'Finished progressive inference on target!'
     utils.write_logs(config, log_str)
 
 

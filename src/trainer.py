@@ -192,7 +192,7 @@ def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=Non
         'mlp_accuracy': mlp_accuracy,
         'gnn_accuracy': gnn_accuracy,
         'confidences_gnn': confidences_gnn,
-        'pred_cls': predict_gnn.numpy(),
+        'pred_cls': predict_mlp.numpy() if config['mlp_dcgct'] == "mlp_dcgct" else predict_gnn.numpy(),
         'sample_masks': sample_masks_idx,
         'sample_masks_cgct': sample_masks_bool.float(),
         'pseudo_label_acc': pseudo_label_acc,
