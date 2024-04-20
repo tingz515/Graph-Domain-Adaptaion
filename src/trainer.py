@@ -16,6 +16,7 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
     len_train_source = len(source_loader)
     mlp_t_accuracy_list, mlp_s_accuracy_list, gnn_accuracy_list = [], [], []
     progressive_mlp_accuracy_list, progressive_gnn_accuracy_list = [], []
+    result_dict = {}
     for dset_name, test_loader in target_test_dset_dict.items():
         logits_mlp_t_all, logits_mlp_s_all, logits_gnn_all, confidences_all, labels_all = [], [], [], [], []
         with torch.no_grad():
@@ -77,6 +78,14 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
         config['out_file'].write(log_str + '\n')
         config['out_file'].flush()
         print(log_str)
+        result_dict[dset_name] = {
+            'mlp_t_accuracy': mlp_t_accuracy,
+            'mlp_s_accuracy': mlp_s_accuracy,
+            'gnn_accuracy': gnn_accuracy,
+            'progressive_mlp_accuracy': progressive_mlp_acc,
+            'progressive_gnn_accuracy': progressive_gnn_acc,
+            'progressive_ratio': progressive_ratio,
+        }
 
         # collect info
         mlp_t_accuracy_list.append(mlp_t_accuracy)
@@ -102,9 +111,16 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
     config['out_file'].write(log_str + '\n')
     config['out_file'].flush()
     print(log_str)
-
+    result_dict['avg'] = {
+        'mlp_t_accuracy_avg': mlp_t_accuracy_avg,
+        'mlp_s_accuracy_avg': mlp_s_accuracy_avg,
+        'gnn_accuracy_avg': gnn_accuracy_avg,
+        'progressive_mlp_accuracy_avg': progressive_mlp_accuracy_avg,
+        'progressive_gnn_accuracy_avg': progressive_gnn_accuracy_avg,
+    }
     base_network.train()
     classifier_gnn.train()
+    return result_dict
 
 
 def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):

@@ -47,7 +47,7 @@ def build_config(args):
         'lambda_adv': args.lambda_adv,
         'random_dim': args.rand_proj,
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
-        "random_domain": False,
+        "random_domain": args.random_domain if "random_domain" in args else False,
         "unable_gnn": args.unable_gnn if "unable_gnn" in args else False,
     }
     if args.alg_type in ['hyper_dcgct', 'mlp_dcgct']:
@@ -70,17 +70,14 @@ def build_config(args):
     encoder_params = {}
     if args.alg_type in ['hyper_dcgct', 'hyper_plot']:
         encoder_params = {
-            "use_hyper": True,
+            "multi_mlp": args.multi_mlp,
+            "use_hyper": args.use_hyper,
             "hyper_embed_dim": args.hyper_embed_dim,
             "hyper_hidden_dim": args.hyper_hidden_dim,
             "hyper_hidden_num": args.hyper_hidden_num,
             "embedding_init": args.embedding_init,
             "prompt_num": args.prompt_num,
             }
-        config["random_domain"] = args.random_domain
-    elif args.alg_type in ['mlp_dcgct']:
-        config["random_domain"] = args.random_domain
-        encoder_params = {"multi_mlp": True}
     config['encoder'] = {
         'name': networks.ResNetFc,
         'params': {'resnet_name': args.encoder,

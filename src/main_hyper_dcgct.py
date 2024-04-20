@@ -8,7 +8,7 @@ import graph_net
 import utils
 import trainer
 
-from logger import configure
+from logger import configure, save_json
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -16,6 +16,8 @@ parser = argparse.ArgumentParser(description='Graph Curriculum Domain Adaptaion'
 # model args
 parser.add_argument('--method', type=str, default='CDAN', choices=['CDAN', 'CDAN+E'])
 parser.add_argument('--encoder', type=str, default='ResNet50', choices=['ResNet18', 'ResNet50'])
+parser.add_argument('--multi_mlp', type=int, default=0, choices=[0, 1])
+parser.add_argument('--use_hyper', type=int, default=1, choices=[0, 1])
 parser.add_argument('--hyper_embed_dim', type=int, default=128)
 parser.add_argument('--hyper_hidden_dim', type=int, default=512)
 parser.add_argument('--hyper_hidden_num', type=int, default=1)
@@ -28,7 +30,7 @@ parser.add_argument('--save_models', action='store_false', help='whether to save
 parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
 parser.add_argument('--source', default='AList', help='name of source domain')
-parser.add_argument('--target', default='NList_PList_RList_UList', help='names of target domains')
+parser.add_argument('--target', default='NList_PList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
@@ -191,7 +193,8 @@ def main(args):
 
     log_str = 'Starting progressive inference on target!'
     utils.write_logs(config, log_str)
-    trainer.evaluate_progressive(0, config, base_network, classifier_gnn, dset_loaders["target_test"], dset_loaders["source"])
+    result_dict = trainer.evaluate_progressive(0, config, base_network, classifier_gnn, dset_loaders["target_test"], dset_loaders["source"])
+    save_json(os.path.join(config['output_path'], 'progressive_inference.json'), result_dict)
     log_str = 'Finished progressive inference on target!'
     utils.write_logs(config, log_str)
 

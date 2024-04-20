@@ -735,6 +735,15 @@ def read_csv(filename: str) -> pandas.DataFrame:
 # Save params
 # ================================================================
 
+def save_json(filename: str, results: Dict) -> None:
+    """
+    save a dictionary to a json file
+    :param filename: the file path to save
+    :param results: the dictionary to save
+    """
+    with open(filename, "wt") as file_handler:
+        json.dump(results, file_handler, indent=4, sort_keys=True)
+
 
 def dump_params(logger: Logger, params: Dict):
     dump_params = params.copy()
