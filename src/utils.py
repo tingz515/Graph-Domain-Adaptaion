@@ -56,6 +56,7 @@ def build_config(args):
         config['same_id_adapt'] = args.same_id_adapt
         config['threshold_progressive'] = args.threshold_progressive
         config['threshold_target'] = args.threshold_target
+        config['finetune_light'] = args.finetune_light
 
     # preprocessing params
     config['prep'] = {
@@ -73,6 +74,7 @@ def build_config(args):
             "hyper_embed_dim": args.hyper_embed_dim,
             "hyper_hidden_dim": args.hyper_hidden_dim,
             "hyper_hidden_num": args.hyper_hidden_num,
+            "embedding_init": args.embedding_init,
             "prompt_num": args.prompt_num,
             }
         config["random_domain"] = args.random_domain

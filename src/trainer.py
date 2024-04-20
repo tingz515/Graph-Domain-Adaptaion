@@ -25,7 +25,7 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
                 data = iter_test.next()
                 inputs = data['img'].to(DEVICE)
                 # forward pass
-                feature, logits_mlp_t, logits_mlp_s= base_network.progressive_forward(inputs, domain_id)
+                feature, logits_mlp_t, logits_mlp_s = base_network.progressive_forward(inputs, domain_id)
 
                 if i % len_train_source == 0:
                     iter_source = iter(source_loader)
@@ -192,7 +192,7 @@ def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=Non
         'mlp_accuracy': mlp_accuracy,
         'gnn_accuracy': gnn_accuracy,
         'confidences_gnn': confidences_gnn,
-        'pred_cls': predict_mlp.numpy() if config['alg_type'] == "mlp_dcgct" else predict_gnn.numpy(),
+        'pred_cls': predict_mlp.numpy() if config['unable_gnn'] else predict_gnn.numpy(),
         'sample_masks': sample_masks_idx,
         'sample_masks_cgct': sample_masks_bool.float(),
         'pseudo_label_acc': pseudo_label_acc,
@@ -315,6 +315,8 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
     # configure optimizer
     optimizer_config = config['optimizer']
     parameter_list = base_network.get_fc_parameters()
+    if config["finetune_light"]:
+        parameter_list += base_network.get_light_parameters()
     optimizer = optimizer_config['type'](parameter_list, **(optimizer_config['optim_params']))
 
     # configure learning rates

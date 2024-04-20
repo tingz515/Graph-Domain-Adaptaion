@@ -19,15 +19,25 @@ class HyperLinear(nn.Module):
         hidden_num: int,
         feature_dim: int,
         output_dim: int,
+        embedding_init: str = "sphere", # sphere, xavier, uniform
     ):
         super().__init__()
         self.in_features = feature_dim
         self.out_features = output_dim
 
         # self.embed = nn.Embedding(ndomains, embedding_dim)
-        embed = torch.normal(0, 1, size=(ndomains, embedding_dim))
-        embed /= torch.norm(embed, dim=-1, keepdim=True)
-        self.embed = nn.Parameter(embed, requires_grad=True)
+        if embedding_init == "sphere":
+            embed = torch.normal(0, 1, size=(ndomains, embedding_dim))
+            embed /= torch.norm(embed, dim=-1, keepdim=True)
+            self.embed = nn.Parameter(embed, requires_grad=True)
+        elif embedding_init == "xavier":
+            self.embed = nn.Parameter(torch.zeros(size=(ndomains, embedding_dim)), requires_grad=True)
+            nn.init.xavier_normal_(self.embed)
+        elif embedding_init == "uniform":
+            self.embed = nn.Parameter(torch.zeros(size=(ndomains, embedding_dim)), requires_grad=True)
+            nn.init.uniform_(self.embed, -1, 1)
+        else:
+            raise ValueError(f"Unknown embedding_init: {embedding_init}")
         # self.embed = nn.Parameter(torch.normal(0, 1, size=(ndomains, embedding_dim)), requires_grad=True)
         # nn.init.xavier_normal_(self.embed)
         # Do it needs ReLU after Embedding ?
@@ -170,6 +180,7 @@ class ResNetFc(nn.Module):
         hyper_embed_dim=64,
         hyper_hidden_dim=128,
         hyper_hidden_num=1,
+        embedding_init="sphere",
         use_hyper=False,
         multi_mlp=False,
         prompt_num=0,
@@ -204,7 +215,7 @@ class ResNetFc(nn.Module):
                     self.bottleneck = nn.Linear(model_resnet.fc.in_features, bottleneck_dim)
                 self.bottleneck.apply(init_weights)
             if use_hyper:
-                self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, self.__in_features, class_num)
+                self.fc = HyperLinear(domain_num, hyper_embed_dim, hyper_hidden_dim, hyper_hidden_num, self.__in_features, class_num, embedding_init)
             elif multi_mlp:
                 fc = [nn.Linear(self.__in_features, class_num) for _ in range(domain_num)]
                 self.fc = nn.ModuleList(fc)
@@ -323,6 +334,13 @@ class ResNetFc(nn.Module):
             {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
             {'params': self.light_bottleneck.parameters(), 'lr_mult': 10, 'decay_mult': 2}
             ])
+        return parameter_list
+
+    def get_light_parameters(self):
+        parameter_list = [
+            {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
+            {'params': self.light_bottleneck.parameters(), 'lr_mult': 10, 'decay_mult': 2}
+        ]
         return parameter_list
 
     def get_fc_parameters(self):
