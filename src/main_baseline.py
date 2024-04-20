@@ -43,7 +43,7 @@ parser.add_argument('--target_batch', type=int, default=16)
 parser.add_argument('--test_batch', type=int, default=32)
 parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
-parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
+parser.add_argument('--unable_gnn', type=int, default=1, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')

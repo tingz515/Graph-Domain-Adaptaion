@@ -48,7 +48,7 @@ def build_config(args):
         'random_dim': args.rand_proj,
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
         "random_domain": False,
-        "unable_gnn": False,
+        "unable_gnn": args.unable_gnn if "unable_gnn" in args else False,
     }
     if args.alg_type in ['hyper_dcgct', 'mlp_dcgct']:
         config['target_inner_iters'] = args.target_inner_iters
@@ -76,7 +76,6 @@ def build_config(args):
             "prompt_num": args.prompt_num,
             }
         config["random_domain"] = args.random_domain
-        config["unable_gnn"] = args.unable_gnn
     elif args.alg_type in ['mlp_dcgct']:
         config["random_domain"] = args.random_domain
         encoder_params = {"multi_mlp": True}
