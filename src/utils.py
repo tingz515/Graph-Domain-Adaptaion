@@ -50,7 +50,7 @@ def build_config(args):
         "random_domain": args.random_domain if "random_domain" in args else False,
         "unable_gnn": args.unable_gnn if "unable_gnn" in args else False,
     }
-    if args.alg_type in ['hyper_dcgct', 'mlp_dcgct']:
+    if "hyper_dcgct" in args.alg_type:
         config['target_inner_iters'] = args.target_inner_iters
         config['target_iters'] = args.target_iters // args.target_inner_iters
         config['same_id_adapt'] = args.same_id_adapt
@@ -68,7 +68,7 @@ def build_config(args):
     }
     # backbone params
     encoder_params = {}
-    if args.alg_type in ['hyper_dcgct', 'hyper_plot']:
+    if "hyper_dcgct" in args.alg_type:
         encoder_params = {
             "multi_mlp": args.multi_mlp,
             "use_hyper": args.use_hyper,

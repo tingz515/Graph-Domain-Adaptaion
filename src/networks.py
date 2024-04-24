@@ -358,8 +358,4 @@ class ResNetFc(nn.Module):
             ]
         if self.prompt_num > 1:
             parameter_list.append({'params': self.x_prompt, 'lr_mult': 10, 'decay_mult': 2})
-        parameter_list.extend([
-            {'params': self.light_model.parameters(), 'lr_mult': 1, 'decay_mult': 2},
-            {'params': self.light_bottleneck.parameters(), 'lr_mult': 10, 'decay_mult': 2}
-            ])
         return parameter_list

@@ -1,6 +1,6 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
-# time_tag="20231121$2"
+time_tag="20240424$2"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 # data_root="/root/datasets"
@@ -24,24 +24,28 @@ do
     
     export CUDA_VISIBLE_DEVICES=$cuda_id
 
-    seed=2023
+    seed=0
 
     for i in $(seq 2)
     do
         tag=$(date "+%Y%m%d%H%M%S")
-        python src/main_hyper_dcgct.py \
+        python src/main_hyper_dcgct_v2.py \
                 --method 'CDAN' \
                 --encoder 'ResNet50' \
                 --dataset 'MTRS' \
                 --target_inner_iters 1 \
                 --target_iters 2000 \
                 --source_iters 200 \
-                --adapt_iters 3000 \
-                --finetune_iters 15000 \
+                --adapt_iters 2000 \
+                --finetune_iters 2000 \
                 --test_interval 500 \
                 --source_batch 32 \
                 --target_batch 32 \
                 --test_batch 64 \
+                --use_hyper 1 \
+                --multi_mlp 0 \
+                --unable_gnn 0 \
+                --finetune_light 1 \
                 --seed $seed \
                 --source $source \
                 --target $target \

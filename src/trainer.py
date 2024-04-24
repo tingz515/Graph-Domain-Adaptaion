@@ -2,12 +2,108 @@ from collections import OrderedDict
 import time
 import torch
 import torch.nn as nn
+import numpy as np
 import networks
 import transfer_loss
 from preprocess import ImageList, ConcatDataset
 from torch.utils.data import DataLoader
 import utils
 from main_dcgct import DEVICE
+
+def average_info(result_dict_all):
+    mlp_t_accuracy_list, mlp_s_accuracy_list, gnn_accuracy_list = [], [], []
+    progressive_mlp_accuracy_list, progressive_gnn_accuracy_list = [], []
+    for val in result_dict_all.values():
+        mlp_t_accuracy_list.append(val['mlp_t_accuracy'])
+        mlp_s_accuracy_list.append(val['mlp_s_accuracy'])
+        gnn_accuracy_list.append(val['gnn_accuracy'])
+        progressive_mlp_accuracy_list.append(val['progressive_mlp_accuracy'])
+        progressive_gnn_accuracy_list.append(val['progressive_gnn_accuracy'])
+    result_dict_all["avg"] = {
+        "mlp_t_accuracy": np.mean(mlp_t_accuracy_list),
+        "mlp_s_accuracy": np.mean(mlp_s_accuracy_list),
+        "gnn_accuracy": np.mean(gnn_accuracy_list),
+        "progressive_mlp_accuracy": np.mean(progressive_mlp_accuracy_list),
+        "progressive_gnn_accuracy": np.mean(progressive_gnn_accuracy_list),
+    }
+    return result_dict_all
+
+def evaluate_progressive_v2(n_iter, config, base_network, classifier_gnn, dset_name, test_loader, source_loader):
+    base_network.eval()
+    classifier_gnn.eval()
+    len_train_source = len(source_loader)
+    logits_mlp_t_all, logits_mlp_s_all, logits_gnn_all, confidences_all, labels_all = [], [], [], [], []
+    with torch.no_grad():
+        iter_test = iter(test_loader)
+        domain_id = test_loader.dataset.domain_id
+        for i in range(len(test_loader)):
+            data = iter_test.next()
+            inputs = data['img'].to(DEVICE)
+            # forward pass
+            feature, logits_mlp_t, logits_mlp_s = base_network.progressive_forward(inputs, domain_id)
+
+            if i % len_train_source == 0:
+                iter_source = iter(source_loader)
+
+            batch_source = iter_source.next()
+            inputs_source = batch_source['img'].to(DEVICE)
+            features_source = base_network.large_feature(inputs_source)
+            features_all = torch.cat((features_source, feature), dim=0)
+            logits_gnn, _ = classifier_gnn(features_all)
+            logits_gnn = logits_gnn[-len(inputs): ]
+
+            logits_mlp_t_all.append(logits_mlp_t.cpu())
+            logits_mlp_s_all.append(logits_mlp_s.cpu())
+            logits_gnn_all.append(logits_gnn.cpu())
+            labels_all.append(data['target'])
+            confidences_all.append(nn.Softmax(dim=1)(logits_mlp_t_all[-1]).max(1)[0])
+
+        logits_mlp_t = torch.cat(logits_mlp_t_all, dim=0)
+        logits_mlp_s = torch.cat(logits_mlp_s_all, dim=0)
+        logits_gnn = torch.cat(logits_gnn_all, dim=0)
+        confidences = torch.cat(confidences_all, dim=0)
+        labels = torch.cat(labels_all, dim=0)
+
+        # predict class labels
+        _, predict_mlp_t = torch.max(logits_mlp_t, 1)
+        _, predict_mlp_s = torch.max(logits_mlp_s, 1)
+        _, predict_gnn = torch.max(logits_gnn, 1)
+        mlp_t_accuracy = torch.sum(predict_mlp_t == labels).item() / len(labels)
+        mlp_s_accuracy = torch.sum(predict_mlp_s == labels).item() / len(labels)
+        gnn_accuracy = torch.sum(predict_gnn == labels).item() / len(labels)
+
+        # progressive predict class labels
+        progressive_index = torch.where(confidences < config['threshold_progressive'])[0]
+        progressive_ratio = len(progressive_index) / len(labels)
+        if len(progressive_index) > 0:
+            progressive_mlp_acc = torch.sum(predict_mlp_s[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+            progressive_gnn_acc = torch.sum(predict_gnn[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+        else:
+            progressive_mlp_acc, progressive_gnn_acc = 0, 0
+
+        # print out test accuracy for domain
+        log_str = 'Dataset:%s ID:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f'\
+                  % (dset_name, domain_id, mlp_t_accuracy * 100, mlp_s_accuracy * 100, gnn_accuracy * 100)
+        config['out_file'].write(log_str + '\n')
+        config['out_file'].flush()
+        print(log_str)
+        log_str = 'Dataset:%s ID:%s\tProgressive Ratio %.4f\tProgressive Accuracy source mlp %.4f\tProgressive Accuracy gnn %.4f'\
+                  % (dset_name, domain_id, progressive_ratio, progressive_mlp_acc * 100, progressive_gnn_acc * 100)
+        config['out_file'].write(log_str + '\n')
+        config['out_file'].flush()
+        print(log_str)
+        result_dict = {
+            'mlp_t_accuracy': mlp_t_accuracy,
+            'mlp_s_accuracy': mlp_s_accuracy,
+            'gnn_accuracy': gnn_accuracy,
+            'progressive_mlp_accuracy': progressive_mlp_acc,
+            'progressive_gnn_accuracy': progressive_gnn_acc,
+            'progressive_ratio': progressive_ratio,
+        }
+
+    base_network.train()
+    classifier_gnn.train()
+    return result_dict
 
 
 def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_test_dset_dict, source_loader):
@@ -371,13 +467,18 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
         if i % config['test_interval'] == config['test_interval'] - 1 or i == config['target_iters'] - 1:
-            mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            # mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
+            test_res = eval_domain(config, dset_loaders['target_test'][domain_name], base_network, classifier_gnn)
+            mlp_accuracy, gnn_accuracy = test_res['mlp_accuracy'], test_res['gnn_accuracy']
+            log_str = 'Dataset:%s ID:%s\tTest Accuracy mlp %.4f\tTest Accuracy gnn %.4f'\
+                  % (domain_name, domain_id_target, mlp_accuracy * 100, gnn_accuracy * 100)
+            config['out_file'].write(log_str + '\n')
+            config['out_file'].flush()
+            print(log_str)
             if logger is not None:
                 logger.record("iter", i)
-                for key, val in mlp_accuracy_dict.items():
-                    logger.record(f"eval/mlp/{key}", val)
-                for key, val in gnn_accuracy_dict.items():
-                    logger.record(f"eval/gnn/{key}", val)
+                logger.record("eval/mlp", mlp_accuracy)
+                logger.record("eval/gnn", gnn_accuracy)
                 logger.record("update/mlp_loss", loss.item())
                 logger.dump()
 
