@@ -47,7 +47,7 @@ parser.add_argument('--test_batch', type=int, default=32)
 parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
 parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
-parser.add_argument('--finetune_light', type=int, default=0, choices=[0, 1])
+parser.add_argument('--finetune_light', type=int, default=1, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
@@ -92,6 +92,8 @@ def main(args):
                                              nclasses=config['encoder']['params']['class_num'],
                                              device=DEVICE)
     classifier_gnn = classifier_gnn.to(DEVICE)
+    if config['unable_gnn']:
+        classifier_gnn.eval()
     utils.write_logs(config, str(classifier_gnn))
 
 

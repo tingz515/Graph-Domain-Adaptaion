@@ -102,7 +102,8 @@ def evaluate_progressive_v2(n_iter, config, base_network, classifier_gnn, dset_n
         }
 
     base_network.train()
-    classifier_gnn.train()
+    if not config["unable_gnn"]:
+        classifier_gnn.train()
     return result_dict
 
 
@@ -215,7 +216,8 @@ def evaluate_progressive(n_iter, config, base_network, classifier_gnn, target_te
         'progressive_gnn_accuracy_avg': progressive_gnn_accuracy_avg,
     }
     base_network.train()
-    classifier_gnn.train()
+    if not config["unable_gnn"]:
+        classifier_gnn.train()
     return result_dict
 
 
@@ -247,7 +249,8 @@ def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
     config['out_file'].flush()
     print(log_str)
     base_network.train()
-    classifier_gnn.train()
+    if not config["unable_gnn"]:
+        classifier_gnn.train()
     return mlp_accuracy_dict, gnn_accuracy_dict
 
 
@@ -289,13 +292,17 @@ def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=Non
     threshold = threshold or config['threshold']
     if config["unable_gnn"]:
         sample_masks_bool = (confidences_mlp > threshold)
+        pred_cls = predict_mlp
+        confidences = confidences_mlp
     else:
         sample_masks_bool = (confidences_gnn > threshold)
+        pred_cls = predict_gnn
+        confidences = confidences_gnn
     sample_masks_idx = torch.nonzero(sample_masks_bool, as_tuple=True)[0].numpy()
     # compute accuracy of pseudo labels
     total_pseudo_labels = len(sample_masks_idx)
     if len(sample_masks_idx) > 0:
-        correct_pseudo_labels = torch.sum(predict_gnn[sample_masks_bool] == labels[sample_masks_bool]).item()
+        correct_pseudo_labels = torch.sum(pred_cls[sample_masks_bool] == labels[sample_masks_bool]).item()
         pseudo_label_acc = correct_pseudo_labels / total_pseudo_labels
     else:
         correct_pseudo_labels = -1.
@@ -303,8 +310,8 @@ def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=Non
     out = {
         'mlp_accuracy': mlp_accuracy,
         'gnn_accuracy': gnn_accuracy,
-        'confidences_gnn': confidences_gnn,
-        'pred_cls': predict_mlp.numpy() if config['unable_gnn'] else predict_gnn.numpy(),
+        'confidences': confidences,
+        'pred_cls': pred_cls.numpy(),
         'sample_masks': sample_masks_idx,
         'sample_masks_cgct': sample_masks_bool.float(),
         'pseudo_label_acc': pseudo_label_acc,
@@ -327,7 +334,7 @@ def select_closest_domain(config, base_network, classifier_gnn, temp_test_loader
     max_inherit_val = 0.
     for dset_name, test_loader in temp_test_loaders.items():
         test_res = eval_domain(config, test_loader, base_network, classifier_gnn)
-        domain_inheritability = test_res['confidences_gnn'].mean().item()
+        domain_inheritability = test_res['confidences'].mean().item()
         
         if domain_inheritability > max_inherit_val:
             max_inherit_val = domain_inheritability
@@ -362,7 +369,8 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
 
     # start train loop
     base_network.train()
-    classifier_gnn.train()
+    if not config["unable_gnn"]:
+        classifier_gnn.train()
     len_train_source = len(dset_loaders["source"])
     domain_id = 0
     for i in range(config['source_iters']):
@@ -393,7 +401,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
 
         # total loss and backpropagation
         if config['unable_gnn']:
-            loss = mlp_loss
+            loss = feature_loss + mlp_loss
         else:
             loss = feature_loss + mlp_loss + config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
         loss.backward()
@@ -603,7 +611,8 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
     domain_id_target = dset_loaders['target_train'][max_inherit_domain].dataset.domain_id
     # set nets in train mode
     base_network.train()
-    classifier_gnn.train()
+    if not config["unable_gnn"]:
+        classifier_gnn.train()
     adv_net.train()
     random_layer.train()
     for i in range(config['adapt_iters']):
@@ -663,7 +672,7 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
 
         # total loss and backpropagation
         if config["unable_gnn"]:
-            loss = config['lambda_adv'] * trans_loss + mlp_loss
+            loss = config['lambda_adv'] * trans_loss + mlp_loss + feature_loss
         else:
             loss = config['lambda_adv'] * trans_loss + mlp_loss + feature_loss + \
                 config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
