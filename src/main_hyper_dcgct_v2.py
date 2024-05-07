@@ -48,6 +48,7 @@ parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
 parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
 parser.add_argument('--finetune_light', type=int, default=1, choices=[0, 1])
+parser.add_argument('--distill_light', type=int, default=1, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')

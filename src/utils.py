@@ -57,6 +57,7 @@ def build_config(args):
         config['threshold_progressive'] = args.threshold_progressive
         config['threshold_target'] = args.threshold_target
         config['finetune_light'] = args.finetune_light
+        config['distill_light'] = args.distill_light
 
     # preprocessing params
     config['prep'] = {

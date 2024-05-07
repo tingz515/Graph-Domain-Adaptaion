@@ -389,8 +389,9 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
         mlp_loss = ce_criterion(logits_mlp, labels_source)
 
         # make forward pass for light encoder
-        light_features_source = base_network.light_feature(inputs_source)
-        feature_loss = (features_source.detach() - light_features_source).pow(2).mean()
+        if config['distill_light']:
+            light_features_source = base_network.light_feature(inputs_source)
+            feature_loss = (features_source.detach() - light_features_source).pow(2).mean()
 
         # make forward pass for gnn head
         logits_gnn, edge_sim = classifier_gnn(features_source)
@@ -400,10 +401,11 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
         edge_loss = criterion_gedge(edge_sim.masked_select(edge_mask), edge_gt.masked_select(edge_mask))
 
         # total loss and backpropagation
-        if config['unable_gnn']:
-            loss = feature_loss + mlp_loss
-        else:
-            loss = feature_loss + mlp_loss + config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+        loss = mlp_loss
+        if not config['unable_gnn']:
+            loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+        if config['distill_light']:
+            loss += feature_loss
         loss.backward()
         optimizer.step()
 
@@ -640,8 +642,9 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         mlp_loss = ce_criterion(logits_mlp_source, labels_source)
 
         # make forward pass for light encoder
-        light_features = base_network.light_feature(torch.cat((inputs_source, inputs_target), dim=0))
-        feature_loss = (features.detach() - light_features).pow(2).mean()
+        if config['distill_light']:
+            light_features = base_network.light_feature(torch.cat((inputs_source, inputs_target), dim=0))
+            feature_loss = (features.detach() - light_features).pow(2).mean()
 
         # *** GNN at work ***
         # make forward pass for gnn head
@@ -671,11 +674,11 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
             raise ValueError('Method cannot be recognized.')
 
         # total loss and backpropagation
-        if config["unable_gnn"]:
-            loss = config['lambda_adv'] * trans_loss + mlp_loss + feature_loss
-        else:
-            loss = config['lambda_adv'] * trans_loss + mlp_loss + feature_loss + \
-                config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+        loss = config['lambda_adv'] * trans_loss + mlp_loss
+        if not config["unable_gnn"]:
+            loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+        if config['distill_light']:
+            loss += feature_loss
         loss.backward()
         optimizer.step()
         # printout train loss
