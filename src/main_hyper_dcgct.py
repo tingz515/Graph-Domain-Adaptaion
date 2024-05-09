@@ -199,7 +199,7 @@ def main(args):
         log_str = f'==> Progressive Inference on {name}'
         utils.write_logs(config, log_str)
 
-        result_dict = trainer.evaluate_progressive_v2(0, config, base_network, classifier_gnn, name, dset_loaders["target_test"][name], dset_loaders["source"])
+        result_dict = trainer.evaluate_progressive(config, base_network, classifier_gnn, name, dset_loaders["target_test"][name], dset_loaders["source"])
         save_json(os.path.join(config['output_path'], f'progressive_inference_{name}.json'), result_dict)
         log_str = '==> Finished progressive inference on target!\n'
         utils.write_logs(config, log_str)

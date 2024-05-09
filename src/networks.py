@@ -290,15 +290,15 @@ class ResNetFc(nn.Module):
             x = x + self.x_prompt[id]
         elif self.prompt_num > 0:
             x = x + self.x_prompt[0]
-        x_s = self.large_feature(x)
+        x_c = self.large_feature(x)
         x_t = self.light_feature(x)
         if self.use_hyper:
+            y_c = self.fc(x_c, 0)
             y_t = self.fc(x_t, id)
-            y_s = self.fc(x_s, 0)
         elif self.multi_mlp:
+            y_c = self.fc[0](x_c)
             y_t = self.fc[id](x_t)
-            y_s = self.fc[0](x_s)
-        return x_t, y_t, y_s
+        return x_t, x_c, y_t, y_c
 
     def large_feature(self, x):
         if self.prompt_num > 0:
