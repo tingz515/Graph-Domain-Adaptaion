@@ -1,6 +1,6 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
-time_tag="20240424$2"
+time_tag="20240510$2"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 # data_root="/root/datasets"
@@ -9,6 +9,8 @@ output_dir="/apdcephfs/share_1563664/ztjiaweixu/zting/$time_tag"
 
 time=1.0
 for source in AList NList PList RList UList
+# for source in AList NList PList RList
+# for source in UList
 do
     if [ $(echo $source | grep "AList")x != ""x ];then
         target=NList_PList_RList_UList

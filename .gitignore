@@ -135,3 +135,6 @@ logs
 essential-byol
 result*
 figure*
+Plotter
+taiji
+*.npy
