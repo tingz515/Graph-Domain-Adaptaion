@@ -40,14 +40,15 @@ parser.add_argument('--source_iters', type=int, default=100, help='number of sou
 parser.add_argument('--adapt_iters', type=int, default=100, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
 parser.add_argument('--test_interval', type=int, default=100, help='interval of two continuous test phase')
-parser.add_argument('--output_dir', type=str, default='~/results/ZTing', help='output directory')
+parser.add_argument('--output_dir', type=str, default='./results/ZTing', help='output directory')
 parser.add_argument('--source_batch', type=int, default=16)
 parser.add_argument('--target_batch', type=int, default=16)
 parser.add_argument('--test_batch', type=int, default=32)
 parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
 parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
-parser.add_argument('--finetune_light', type=int, default=0, choices=[0, 1])
+parser.add_argument('--finetune_light', type=int, default=1, choices=[0, 1])
+parser.add_argument('--distill_light', type=int, default=1, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
@@ -92,7 +93,11 @@ def main(args):
                                              nclasses=config['encoder']['params']['class_num'],
                                              device=DEVICE)
     classifier_gnn = classifier_gnn.to(DEVICE)
+    if config['unable_gnn']:
+        classifier_gnn.eval()
     utils.write_logs(config, str(classifier_gnn))
+
+
 
     # train on source domain and compute domain inheritability
     log_str = '==> Step 1: Pre-training on the source dataset ...'
@@ -172,9 +177,13 @@ def main(args):
         dsets["target_test"][name].set_domain_id(config["domain_id"][name])
         dset_loaders["target_test"][name].dataset.set_domain_id(config["domain_id"][name])
 
+    result_dict_all = {}
     for name in config['data']['target']['name']:
         log_str = f'==> Starting fine-tuning on {name}'
         utils.write_logs(config, log_str)
+        base_network.load_state_dict(torch.load(os.path.join(config['output_path'], 'base_network_source.pth')))
+        classifier_gnn.load_state_dict(torch.load(os.path.join(config['output_path'], 'classifier_gnn_source.pth')))
+
         logger = configure(config["output_path"], ["csv"], f"_step4_{name}")
         train_target = trainer.train_target if config['target_inner_iters'] == 1 else trainer.train_target_v2
         base_network, classifier_gnn = train_target(config, base_network, classifier_gnn, dset_loaders, name, logger)
@@ -182,21 +191,21 @@ def main(args):
         log_str = f'==> Finishing fine-tuning on {name}\n'
         utils.write_logs(config, log_str)
 
-    # save models
-    if args.save_models:
-        torch.save(base_network.state_dict(), os.path.join(config['output_path'], 'base_network_target.pth'))
-        torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], 'classifier_gnn_target.pth'))
+        # save models
+        if args.save_models:
+            torch.save(base_network.state_dict(), os.path.join(config['output_path'], f'base_network_target_{name}.pth'))
+            torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], f'classifier_gnn_target_{name}.pth'))
 
-    ######### Step 5: progressive inference stage on target ###########
-    log_str = '==> Step 5: Progressive Inference on target dataset ...'
-    utils.write_logs(config, log_str)
+        log_str = f'==> Progressive Inference on {name}'
+        utils.write_logs(config, log_str)
 
-    log_str = 'Starting progressive inference on target!'
-    utils.write_logs(config, log_str)
-    result_dict = trainer.evaluate_progressive(0, config, base_network, classifier_gnn, dset_loaders["target_test"], dset_loaders["source"])
-    save_json(os.path.join(config['output_path'], 'progressive_inference.json'), result_dict)
-    log_str = 'Finished progressive inference on target!'
-    utils.write_logs(config, log_str)
+        result_dict = trainer.evaluate_progressive_v2(0, config, base_network, classifier_gnn, name, dset_loaders["target_test"][name], dset_loaders["source"])
+        save_json(os.path.join(config['output_path'], f'progressive_inference_{name}.json'), result_dict)
+        log_str = '==> Finished progressive inference on target!\n'
+        utils.write_logs(config, log_str)
+        result_dict_all[name] = result_dict
+    result_dict_all = trainer.average_info(result_dict_all)
+    save_json(os.path.join(config['output_path'], 'progressive_inference_all.json'), result_dict_all)
 
 
 if __name__ == "__main__":

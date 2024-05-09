@@ -31,7 +31,7 @@ do
     for i in $(seq 2)
     do
         tag=$(date "+%Y%m%d%H%M%S")
-        python src/main_hyper_dcgct_v2.py \
+        python src/main_hyper_dcgct.py \
                 --method 'CDAN' \
                 --encoder 'ResNet50' \
                 --dataset 'MTRS' \
