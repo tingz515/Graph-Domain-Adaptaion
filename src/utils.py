@@ -49,6 +49,8 @@ def build_config(args):
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
         "random_domain": args.random_domain if "random_domain" in args else False,
         "unable_gnn": args.unable_gnn if "unable_gnn" in args else False,
+        "finetune_light": args.finetune_light if "finetune_light" in args else False,
+        "distill_light": args.distill_light if "distill_light" in args else False,
     }
     if "hyper_dcgct" in args.alg_type:
         config['target_inner_iters'] = args.target_inner_iters
@@ -56,8 +58,6 @@ def build_config(args):
         config['same_id_adapt'] = args.same_id_adapt
         config['threshold_progressive'] = args.threshold_progressive
         config['threshold_target'] = args.threshold_target
-        config['finetune_light'] = args.finetune_light
-        config['distill_light'] = args.distill_light
 
     # preprocessing params
     config['prep'] = {
@@ -151,18 +151,27 @@ def build_config(args):
         'test': preprocess.image_test(**config["prep"]['params']),
     }
     # create output folder and log file
-    time_tag = time.strftime("%Y%m%d%H%M%S", time.localtime())
-    output_file =  f"{args.method}_{args.dataset}_{args.source}_rest_{args.seed}_{time_tag}"
-    config['output_path'] = os.path.expanduser(os.path.join(args.output_dir, output_file))
-    if not os.path.exists(config['output_path']):
-        os.system('mkdir -p '+config['output_path'])
-    config['out_file'] = open(os.path.join(config['output_path'], 'log.txt'), 'w')
 
-    # print pout config values
-    config['out_file'].write(str(config)+'\n')
-    config['out_file'].flush()
+    if not args.eval_only:
+        time_tag = time.strftime("%Y%m%d%H%M%S", time.localtime())
+        output_file =  f"{args.method}_{args.dataset}_{args.source}_rest_{args.seed}_{time_tag}"
+        config['output_path'] = os.path.expanduser(os.path.join(args.output_dir, output_file))
+        if not os.path.exists(config['output_path']):
+            os.system('mkdir -p '+config['output_path'])
+        config['out_file'] = open(os.path.join(config['output_path'], 'log.txt'), 'w')
 
-    dump_params(config)
+        # print pout config values
+        config['out_file'].write(str(config)+'\n')
+        config['out_file'].flush()
+        dump_params(config)
+    else:
+        for file_name in os.listdir(args.output_dir):
+            if f"{args.source}_rest_{args.seed}" in file_name:
+                config['output_path'] = os.path.join(args.output_dir, file_name)
+                break
+        os.makedirs(f"{config['output_path']}/eval", exist_ok=True)
+        config['out_file'] = open(os.path.join(config['output_path'], 'log_eval.txt'), 'w')
+
     return config
 
 

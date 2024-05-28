@@ -44,6 +44,8 @@ parser.add_argument('--test_batch', type=int, default=32)
 parser.add_argument('--same_id_adapt', type=int, default=1, choices=[0, 1])
 parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
 parser.add_argument('--unable_gnn', type=int, default=1, choices=[0, 1])
+parser.add_argument('--finetune_light', type=int, default=0, choices=[0, 1])
+parser.add_argument('--distill_light', type=int, default=0, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
@@ -58,6 +60,7 @@ parser.add_argument('--threshold', type=float, default=0.7, help='threshold for 
 parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
+parser.add_argument('--eval_only', type=int, default=0, help="evaluation mode")
 parser.add_argument("--alg_type", type=str, default=os.path.basename(__file__)[5:-3])
 
 

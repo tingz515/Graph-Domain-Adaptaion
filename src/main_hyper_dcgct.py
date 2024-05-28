@@ -63,6 +63,7 @@ parser.add_argument('--threshold', type=float, default=0.7, help='threshold for 
 parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
+parser.add_argument('--eval_only', type=int, default=0, help="evaluation mode")
 parser.add_argument("--alg_type", type=str, default=os.path.basename(__file__)[5:-3])
 
 
