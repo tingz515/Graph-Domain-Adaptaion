@@ -63,8 +63,8 @@ class HyperLinear(nn.Module):
         return out
 
     def forward(self, x, id):
-        embed = F.normalize(self.embed)[id]
-        # embed = self.embed[id]
+        # embed = F.normalize(self.embed)[id]
+        embed = self.embed[id]
         embed = F.relu(embed)
         param = self.model(embed)
         if self.in_features == 0:
@@ -309,6 +309,24 @@ class ResNetFc(nn.Module):
             x = self.bottleneck(x)
             x = F.relu(x)
         return x
+
+    def cloud_classifier(self, x):
+        if self.use_hyper:
+            y = self.fc(x, 0)
+        elif self.multi_mlp:
+            y = self.fc[0](x)
+        else:
+            y = self.fc(x)
+        return y
+
+    def terminal_classifier(self, x, id):
+        if self.use_hyper:
+            y = self.fc(x, id)
+        elif self.multi_mlp:
+            y = self.fc[id](x)
+        else:
+            y = self.fc(x)
+        return y
 
     def output_num(self):
         return self.__in_features

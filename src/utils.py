@@ -51,6 +51,8 @@ def build_config(args):
         "unable_gnn": args.unable_gnn if "unable_gnn" in args else False,
         "finetune_light": args.finetune_light if "finetune_light" in args else False,
         "distill_light": args.distill_light if "distill_light" in args else False,
+        "mlp_pseudo": args.mlp_pseudo if "mlp_pseudo" in args else False,
+        "checkpoint_dir": args.checkpoint_dir if "checkpoint_dir" in args else None,
     }
     if "hyper_dcgct" in args.alg_type:
         config['target_inner_iters'] = args.target_inner_iters

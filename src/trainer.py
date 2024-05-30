@@ -11,6 +11,10 @@ import utils
 from main_dcgct import DEVICE
 
 
+def freeze_bn(m):
+    if isinstance(m, nn.BatchNorm2d):
+        m.eval()
+
 def average_info(result_dict_all):
     avg_result = {}
     info_keys = result_dict_all[list(result_dict_all.keys())[0]].keys()
@@ -20,12 +24,15 @@ def average_info(result_dict_all):
     return result_dict_all
 
 
-def evaluate_progressive(config, base_network, classifier_gnn, dset_name, test_loader, source_loader):
+def evaluate_DisCo(config, base_network, classifier_gnn, dset_name, test_loader, source_loader):
     base_network.eval()
     classifier_gnn.eval()
     len_train_source = len(source_loader)
-    logits_mlp_t_all, logits_mlp_c_all, logits_gnn_all = [], [], []
-    mix_logits_gnn_all, confidences_all, labels_all = [], [], []
+    logits_mlp_t_all = []
+    logits_mlp_c_all, logits_mlp_c_tran_all = [], []
+    logits_gnn_all, logits_gnn_tran_all = [], []
+    mix_logits_gnn_all, mix_logits_gnn_tran_all = [], []
+    confidences_all, labels_all, predict_t = [], [], []
     with torch.no_grad():
         iter_test = iter(test_loader)
         domain_id = test_loader.dataset.domain_id
@@ -33,52 +40,80 @@ def evaluate_progressive(config, base_network, classifier_gnn, dset_name, test_l
             data = iter_test.next()
             inputs = data['img'].to(DEVICE)
             # forward pass
-            feature_t, feature_c, logits_mlp_t, logits_mlp_c = base_network.progressive_forward(inputs, domain_id)
+            feature_t = base_network.light_feature(inputs)
+            feature_c = base_network.large_feature(inputs)
+
+            logits_mlp_t = base_network.terminal_classifier(feature_t, domain_id)
+
+            logits_mlp_c = base_network.cloud_classifier(feature_c)
+            logits_mlp_c_tran = base_network.cloud_classifier(feature_t)
+
             logits_gnn = logits_mlp_c if len(inputs) == 1 else classifier_gnn(feature_c)[0]
+            logits_gnn_tran = logits_mlp_c_tran if len(inputs) == 1 else classifier_gnn(feature_t)[0]
 
             if i % len_train_source == 0:
                 iter_source = iter(source_loader)
             batch_source = iter_source.next()
             inputs_source = batch_source['img'].to(DEVICE)
-
             features_source = base_network.large_feature(inputs_source)
-            features_all = torch.cat((features_source, feature_t), dim=0)
-            mix_logits_gnn, _ = classifier_gnn(features_all)
+
+            features_mix_c = torch.cat((features_source, feature_c), dim=0)
+            features_mix_t = torch.cat((features_source, feature_t), dim=0)
+            mix_logits_gnn = classifier_gnn(features_mix_c)[0]
             mix_logits_gnn = mix_logits_gnn[-len(inputs): ]
+            mix_logits_gnn_tran = classifier_gnn(features_mix_t)[0]
+            mix_logits_gnn_tran = mix_logits_gnn_tran[-len(inputs): ]
 
             logits_mlp_t_all.append(logits_mlp_t.cpu())
             logits_mlp_c_all.append(logits_mlp_c.cpu())
+            logits_mlp_c_tran_all.append(logits_mlp_c_tran.cpu())
             logits_gnn_all.append(logits_gnn.cpu())
+            logits_gnn_tran_all.append(logits_gnn_tran.cpu())
             mix_logits_gnn_all.append(mix_logits_gnn.cpu())
+            mix_logits_gnn_tran_all.append(mix_logits_gnn_tran.cpu())
             labels_all.append(data['target'])
             confidences_all.append(nn.Softmax(dim=1)(logits_mlp_t_all[-1]).max(1)[0])
 
         logits_mlp_t = torch.cat(logits_mlp_t_all, dim=0)
         logits_mlp_c = torch.cat(logits_mlp_c_all, dim=0)
+        logits_mlp_c_tran = torch.cat(logits_mlp_c_tran_all, dim=0)
         logits_gnn = torch.cat(logits_gnn_all, dim=0)
+        logits_gnn_tran = torch.cat(logits_gnn_tran_all, dim=0)
         mix_logits_gnn = torch.cat(mix_logits_gnn_all, dim=0)
+        mix_logits_gnn_tran = torch.cat(mix_logits_gnn_tran_all, dim=0)
         confidences = torch.cat(confidences_all, dim=0)
         labels = torch.cat(labels_all, dim=0)
 
         # predict class labels
         _, predict_mlp_t = torch.max(logits_mlp_t, 1)
         _, predict_mlp_c = torch.max(logits_mlp_c, 1)
+        _, predict_mlp_c_tran = torch.max(logits_mlp_c_tran, 1)
         _, predict_gnn = torch.max(logits_gnn, 1)
+        _, predict_gnn_tran = torch.max(logits_gnn_tran, 1)
         _, predict_mix_gnn = torch.max(mix_logits_gnn, 1)
+        _, predict_mix_gnn_tran = torch.max(mix_logits_gnn_tran, 1)
+
         mlp_t_accuracy = torch.sum(predict_mlp_t == labels).item() / len(labels)
         mlp_c_accuracy = torch.sum(predict_mlp_c == labels).item() / len(labels)
+        mlp_c_tran_accuracy = torch.sum(predict_mlp_c_tran == labels).item() / len(labels)
         gnn_accuracy = torch.sum(predict_gnn == labels).item() / len(labels)
+        gnn_tran_accuracy = torch.sum(predict_gnn_tran == labels).item() / len(labels)
         mix_gnn_accuracy = torch.sum(predict_mix_gnn == labels).item() / len(labels)
+        mix_gnn_tran_accuracy = torch.sum(predict_mix_gnn_tran == labels).item() / len(labels)
 
         # progressive predict class labels
         progressive_index = torch.where(confidences < config['threshold_progressive'])[0]
         progressive_ratio = len(progressive_index) / len(labels)
         if len(progressive_index) > 0:
             progressive_mlp_acc = torch.sum(predict_mlp_c[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+            progressive_mlp_tran_acc = torch.sum(predict_mlp_c_tran[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
             progressive_gnn_acc = torch.sum(predict_gnn[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+            progressive_gnn_tran_acc = torch.sum(predict_gnn_tran[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
             progressive_mix_gnn_acc = torch.sum(predict_mix_gnn[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
+            progressive_mix_gnn_tran_acc = torch.sum(predict_mix_gnn_tran[progressive_index] == labels[progressive_index]).item() / len(progressive_index)
         else:
-            progressive_mlp_acc, progressive_gnn_acc, progressive_mix_gnn_acc = 0, 0, 0
+            progressive_mlp_acc, progressive_mlp_tran_acc, progressive_gnn_acc, progressive_gnn_tran_acc, \
+                progressive_mix_gnn_acc, progressive_mix_gnn_tran_acc = 0, 0, 0, 0, 0, 0
 
         # print out test accuracy for domain
         log_str = 'Dataset:%s ID:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f\tTest Accuracy mix gnn %.4f'\
@@ -94,18 +129,30 @@ def evaluate_progressive(config, base_network, classifier_gnn, dset_name, test_l
         result_dict = {
             'mlp_t_accuracy': mlp_t_accuracy,
             'mlp_c_accuracy': mlp_c_accuracy,
+            'mlp_c_tran_accuracy': mlp_c_tran_accuracy,
             'gnn_accuracy': gnn_accuracy,
+            'gnn_tran_accuracy': gnn_tran_accuracy,
             'mix_gnn_accuracy': mix_gnn_accuracy,
+            'mix_gnn_tran_accuracy': mix_gnn_tran_accuracy,
             'progressive_mlp_accuracy': progressive_mlp_acc,
+            'progressive_mlp_tran_accuracy': progressive_mlp_tran_acc,
             'progressive_gnn_accuracy': progressive_gnn_acc,
+            'progressive_gnn_tran_accuracy': progressive_gnn_tran_acc,
             'progressive_mix_gnn_accuracy': progressive_mix_gnn_acc,
+            'progressive_mix_gnn_tran_accuracy': progressive_mix_gnn_tran_acc,
             'progressive_ratio': progressive_ratio,
+        }
+        labels = labels.numpy().tolist()
+        predict_mlp_t = predict_mlp_t.numpy().tolist()
+        evalution_result = {
+            'predict_mlp_t': predict_mlp_t,
+            'labels': labels,
         }
 
     base_network.train()
     if not config["unable_gnn"]:
         classifier_gnn.train()
-    return result_dict
+    return result_dict, evalution_result
 
 
 def evaluate(i, config, base_network, classifier_gnn, target_test_dset_dict):
@@ -177,7 +224,7 @@ def eval_domain(config, test_loader, base_network, classifier_gnn, threshold=Non
     gnn_accuracy = torch.sum(predict_gnn == labels).item() / len(labels)
     # compute mask for high confident samples
     threshold = threshold or config['threshold']
-    if config["unable_gnn"]:
+    if config["unable_gnn"] or config["mlp_pseudo"]:
         sample_masks_bool = (confidences_mlp > threshold)
         pred_cls = predict_mlp
         confidences = confidences_mlp
@@ -336,6 +383,8 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
 
     # start train loop
     base_network.train()
+    base_network.feature_layers.apply(freeze_bn)
+    classifier_gnn.apply(freeze_bn)
     len_train_target = len(dset_loaders["target_train"][domain_name])
     domain_id_target = dset_loaders["target_train"][domain_name].dataset.domain_id
     for i in range(config['target_iters']):

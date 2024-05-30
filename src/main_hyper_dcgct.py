@@ -30,7 +30,7 @@ parser.add_argument('--save_models', action='store_false', help='whether to save
 parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
 parser.add_argument('--source', default='AList', help='name of source domain')
-parser.add_argument('--target', default='NList_PList', help='names of target domains')
+parser.add_argument('--target', default='NList_PList_UList_RList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
 # training args
@@ -49,18 +49,19 @@ parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
 parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
 parser.add_argument('--finetune_light', type=int, default=1, choices=[0, 1])
 parser.add_argument('--distill_light', type=int, default=1, choices=[0, 1])
+parser.add_argument('--mlp_pseudo', type=int, default=0, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
-parser.add_argument('--lambda_edge', default=0.5, type=float, help='edge loss weight')
-parser.add_argument('--lambda_node', default=0.5, type=float, help='node classification loss weight')
+parser.add_argument('--lambda_edge', default=0.3, type=float, help='edge loss weight')
+parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
 parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
 parser.add_argument('--threshold_target', type=float, default=0.9, help='threshold for pseudo labels in update target domain')
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
-parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
+parser.add_argument('--seed', type=int, default=0, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
 parser.add_argument('--eval_only', type=int, default=0, help="evaluation mode")
@@ -161,6 +162,9 @@ def main(args):
         torch.save(base_network.state_dict(), os.path.join(config['output_path'], 'base_network_source.pth'))
         torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], 'classifier_gnn_source.pth'))
 
+    mlp_accuracy_dict, gnn_accuracy_dict = trainer.evaluate(0, config, base_network, classifier_gnn, dset_loaders['target_test'])
+    save_json(os.path.join(config['output_path'], f'source_eval_result.json'), {"mlp": mlp_accuracy_dict, "gnn": gnn_accuracy_dict})
+
     ######### Step 4: fine-tuning stage on target ###########
     log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
     utils.write_logs(config, log_str)
@@ -200,7 +204,7 @@ def main(args):
         log_str = f'==> Progressive Inference on {name}'
         utils.write_logs(config, log_str)
 
-        result_dict = trainer.evaluate_progressive(config, base_network, classifier_gnn, name, dset_loaders["target_test"][name], dset_loaders["source"])
+        result_dict, _ = trainer.evaluate_DisCo(config, base_network, classifier_gnn, name, dset_loaders["target_test"][name], dset_loaders["source"])
         save_json(os.path.join(config['output_path'], f'progressive_inference_{name}.json'), result_dict)
         log_str = '==> Finished progressive inference on target!\n'
         utils.write_logs(config, log_str)

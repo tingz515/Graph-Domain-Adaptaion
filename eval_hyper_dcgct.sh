@@ -26,19 +26,13 @@ do
 
     seed=0
 
-    for i in $(seq 2)
+    for i in $(seq 4)
     do
         tag=$(date "+%Y%m%d%H%M%S")
-        python src/main_hyper_dcgct.py \
+        python src/eval_hyper_dcgct.py \
                 --method 'CDAN' \
                 --encoder 'ResNet50' \
                 --dataset 'MTRS' \
-                --target_inner_iters 1 \
-                --target_iters 2000 \
-                --source_iters 200 \
-                --adapt_iters 2000 \
-                --finetune_iters 2000 \
-                --test_interval 500 \
                 --source_batch 32 \
                 --target_batch 32 \
                 --test_batch 64 \

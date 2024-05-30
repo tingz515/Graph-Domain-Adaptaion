@@ -2,13 +2,13 @@ import os
 import random
 import argparse
 import torch
-import torch.nn as nn
+import json
 import numpy as np
 import pickle
 
 import graph_net
 import utils
-
+import trainer
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -40,7 +40,7 @@ parser.add_argument('--source_iters', type=int, default=100, help='number of sou
 parser.add_argument('--adapt_iters', type=int, default=100, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
 parser.add_argument('--test_interval', type=int, default=100, help='interval of two continuous test phase')
-parser.add_argument('--output_dir', type=str, default='~/results/ZTing', help='output directory')
+parser.add_argument('--output_dir', type=str, default='/apdcephfs/share_1563664/ztjiaweixu/zting/2024051102', help='output directory')
 parser.add_argument('--source_batch', type=int, default=16)
 parser.add_argument('--target_batch', type=int, default=16)
 parser.add_argument('--test_batch', type=int, default=32)
@@ -49,18 +49,19 @@ parser.add_argument('--random_domain', type=int, default=0, choices=[0, 1])
 parser.add_argument('--unable_gnn', type=int, default=0, choices=[0, 1])
 parser.add_argument('--finetune_light', type=int, default=1, choices=[0, 1])
 parser.add_argument('--distill_light', type=int, default=1, choices=[0, 1])
+parser.add_argument('--mlp_pseudo', type=int, default=0, choices=[0, 1])
 # optimization args
 parser.add_argument('--lr_type_hyper', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr_type', type=str, default='none', choices=['none', 'inv'], help='type of learning rate scheduler')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
-parser.add_argument('--lambda_edge', default=0.5, type=float, help='edge loss weight')
-parser.add_argument('--lambda_node', default=0.5, type=float, help='node classification loss weight')
+parser.add_argument('--lambda_edge', default=0.3, type=float, help='edge loss weight')
+parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
 parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
 parser.add_argument('--threshold_target', type=float, default=0.9, help='threshold for pseudo labels in update target domain')
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
-parser.add_argument('--seed', type=int, default=2023, help='random seed for training')
+parser.add_argument('--seed', type=int, default=0, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
 parser.add_argument('--eval_only', type=int, default=1, help="evaluation mode")
@@ -100,71 +101,17 @@ def main(args):
     classifier_gnn.eval()
     for data_name, test_loader in dset_loaders["target_test"].items():
         # prepare model
-        logits_mlp_t_all, logits_mlp_c_all, logits_gnn_all = [], [], []
-        mix_logits_gnn_all, confidences_all, labels_all = [], [], []
         base_network_path = os.path.join(config['output_path'], f"base_network_target_{data_name}.pth")
         base_network.load_state_dict(torch.load(base_network_path))
         classifier_gnn_path = os.path.join(config['output_path'], f"classifier_gnn_target_{data_name}.pth")
         classifier_gnn.load_state_dict(torch.load(classifier_gnn_path))
         utils.write_logs(config, f"load model from {base_network_path}")
         utils.write_logs(config, f"load model from {classifier_gnn_path}")
-        # prepare source data
-        source_loader = dset_loaders["source"]
-        len_source = len(source_loader)
-        # inference
-        with torch.no_grad():
-            iter_test = iter(test_loader)
-            domain_id = test_loader.dataset.domain_id
-            for i in range(len(test_loader)):
-                data = iter_test.next()
-                inputs = data['img'].to(DEVICE)
-                # forward pass
-                feature_t, feature_c, logits_mlp_t, logits_mlp_c = base_network.progressive_forward(inputs, domain_id)
-                logits_gnn = logits_mlp_c if len(inputs) == 1 else classifier_gnn(feature_c)[0]
 
-                if i % len_source == 0:
-                    iter_source = iter(source_loader)
-                batch_source = iter_source.next()
-                inputs_source = batch_source['img'].to(DEVICE)
+        result_dict, evalution_result = trainer.evaluate_DisCo(config, base_network, classifier_gnn, data_name, test_loader, dset_loaders["source"])
 
-                features_source = base_network.large_feature(inputs_source)
-                features_all = torch.cat((features_source, feature_t), dim=0)
-                mix_logits_gnn, _ = classifier_gnn(features_all)
-                mix_logits_gnn = mix_logits_gnn[-len(inputs): ]
-
-                logits_mlp_t_all.append(logits_mlp_t.cpu())
-                logits_mlp_c_all.append(logits_mlp_c.cpu())
-                logits_gnn_all.append(logits_gnn.cpu())
-                mix_logits_gnn_all.append(mix_logits_gnn.cpu())
-                labels_all.append(data['target'])
-                confidences_all.append(nn.Softmax(dim=1)(logits_mlp_t_all[-1]).max(1)[0])
-
-            logits_mlp_t = torch.cat(logits_mlp_t_all, dim=0)
-            logits_mlp_c = torch.cat(logits_mlp_c_all, dim=0)
-            logits_gnn = torch.cat(logits_gnn_all, dim=0)
-            mix_logits_gnn = torch.cat(mix_logits_gnn_all, dim=0)
-            confidences = torch.cat(confidences_all, dim=0)
-            labels = torch.cat(labels_all, dim=0)
-        #   predict class labels
-        _, predict_mlp_t = torch.max(logits_mlp_t, 1)
-        _, predict_mlp_c = torch.max(logits_mlp_c, 1)
-        _, predict_gnn = torch.max(logits_gnn, 1)
-        _, predict_mix_gnn = torch.max(mix_logits_gnn, 1)
-        predict_mlp_t = predict_mlp_t.numpy().tolist()
-        predict_mlp_c = predict_mlp_c.numpy().tolist()
-        predict_gnn = predict_gnn.numpy().tolist()
-        predict_mix_gnn = predict_mix_gnn.numpy().tolist()
-        labels = labels.numpy().tolist()
-        confidences = confidences.numpy().tolist()
-        evalution_result = {
-            'predict_mlp_t': predict_mlp_t,
-            'predict_mlp_c': predict_mlp_c,
-            'predict_gnn': predict_gnn,
-            'predict_mix_gnn': predict_mix_gnn,
-            'labels': labels,
-            'confidences': confidences,
-        }
-
+        with open(os.path.join(config['output_path'], "eval", f'inference_{data_name}.json'), "wt") as f:
+            json.dump(result_dict, f, indent=4, sort_keys=True)
         with open(os.path.join(config['output_path'], "eval", f'eval_{data_name}.pkl'), 'wb') as f:
             pickle.dump(evalution_result, f)
         utils.write_logs(config, f"save evalution result to {os.path.join(config['output_path'], 'eval', f'eval_{data_name}.pkl')}")

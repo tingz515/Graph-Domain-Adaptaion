@@ -1,6 +1,6 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
-time_tag="20240420$2"
+time_tag="20240531$2"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 # data_root="/root/datasets"
@@ -33,7 +33,7 @@ do
                 --method 'CDAN' \
                 --encoder 'ResNet50' \
                 --dataset 'MTRS' \
-                --source_iters 4000 \
+                --source_iters 2000 \
                 --test_interval 500 \
                 --source_batch 32 \
                 --target_batch 32 \
