@@ -32,7 +32,7 @@ def evaluate_DisCo(config, base_network, classifier_gnn, dset_name, test_loader,
     logits_mlp_c_all, logits_mlp_c_tran_all = [], []
     logits_gnn_all, logits_gnn_tran_all = [], []
     mix_logits_gnn_all, mix_logits_gnn_tran_all = [], []
-    confidences_all, labels_all, predict_t = [], [], []
+    confidences_all, labels_all = [], []
     with torch.no_grad():
         iter_test = iter(test_loader)
         domain_id = test_loader.dataset.domain_id
@@ -811,6 +811,7 @@ def upgrade_target_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     dset_loaders['target_train'][max_inherit_domain] = DataLoader(dataset=target_dataset_new,
                                                             batch_size=target_bs, shuffle=True,
                                                             num_workers=config['num_workers'], drop_last=True)
+    return test_res['pseudo_label_acc'] * 100
 
 
 def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier_gnn, curri_iter):
