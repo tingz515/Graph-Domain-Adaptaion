@@ -8,12 +8,12 @@ import networks
 import preprocess
 from preprocess import ImageList
 
-def dump_params(config):
+def dump_params(config, save_path):
     dump_params = config.copy()
     for k, v in dump_params.items():
         dump_params[k] = str(v)
         write_logs(config, f"{k}: {v}")
-    with open(os.path.join(config['output_path'], "params.json"), "wt") as f:
+    with open(os.path.join(save_path, "params.json"), "wt") as f:
         f.write(json.dumps(dump_params, indent=4) + "\n")
         f.flush()
 
@@ -165,14 +165,15 @@ def build_config(args):
         # print pout config values
         config['out_file'].write(str(config)+'\n')
         config['out_file'].flush()
-        dump_params(config)
+        dump_params(config, config['output_path'])
     else:
         for file_name in os.listdir(args.output_dir):
             if f"{args.source}_rest_{args.seed}" in file_name:
                 config['output_path'] = os.path.join(args.output_dir, file_name)
                 break
-        os.makedirs(f"{config['output_path']}/eval", exist_ok=True)
-        config['out_file'] = open(os.path.join(config['output_path'], 'log_eval.txt'), 'w')
+        os.makedirs(f"{config['output_path']}/eval_{args.exp_id}", exist_ok=True)
+        config['out_file'] = open(os.path.join(config['output_path'], f'eval_{args.exp_id}', 'log_eval.txt'), 'w')
+        dump_params(config, os.path.join(config['output_path'], f'eval_{args.exp_id}'))
 
     return config
 

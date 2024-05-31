@@ -64,6 +64,7 @@ parser.add_argument('--threshold', type=float, default=0.7, help='threshold for 
 parser.add_argument('--seed', type=int, default=0, help='random seed for training')
 parser.add_argument('--num_workers', type=int, default=4, help='number of workers for dataloaders')
 # other args
+parser.add_argument('--exp_id', type=str, default="00", help='experiment id')
 parser.add_argument('--eval_only', type=int, default=1, help="evaluation mode")
 parser.add_argument("--alg_type", type=str, default=os.path.basename(__file__)[5:-3])
 
@@ -111,15 +112,15 @@ def main(args):
 
         result_dict, evalution_result = trainer.evaluate_DisCo(config, base_network, classifier_gnn, data_name, test_loader, dset_loaders["source"])
 
-        with open(os.path.join(config['output_path'], "eval", f'inference_{data_name}.json'), "wt") as f:
+        with open(os.path.join(config['output_path'], f'eval_{args.exp_id}', f'inference_{data_name}.json'), "wt") as f:
             json.dump(result_dict, f, indent=4, sort_keys=True)
-        with open(os.path.join(config['output_path'], "eval", f'eval_{data_name}.pkl'), 'wb') as f:
+        with open(os.path.join(config['output_path'], f'eval_{args.exp_id}', f'eval_{data_name}.pkl'), 'wb') as f:
             pickle.dump(evalution_result, f)
         utils.write_logs(config, f"save evalution result to {os.path.join(config['output_path'], 'eval', f'eval_{data_name}.pkl')}")
 
         result_dict_all[data_name] = result_dict
     result_dict_all = trainer.average_info(result_dict_all)
-    with open(os.path.join(config['output_path'], "eval", f'inference_all.json'), "wt") as f:
+    with open(os.path.join(config['output_path'], f'eval_{args.exp_id}', f'inference_all.json'), "wt") as f:
         json.dump(result_dict_all, f, indent=4, sort_keys=True)
     utils.write_logs(config, f"save evalution result to {os.path.join(config['output_path'], 'eval', 'inference_all.json')}")
 

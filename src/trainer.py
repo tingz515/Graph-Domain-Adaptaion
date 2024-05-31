@@ -114,6 +114,10 @@ def evaluate_DisCo(config, base_network, classifier_gnn, dset_name, test_loader,
         else:
             progressive_mlp_acc, progressive_mlp_tran_acc, progressive_gnn_acc, progressive_gnn_tran_acc, \
                 progressive_mix_gnn_acc, progressive_mix_gnn_tran_acc = 0, 0, 0, 0, 0, 0
+        cloud_ture = torch.sum(predict_mix_gnn_tran[progressive_index] == labels[progressive_index]).item()
+        un_progressive_index = np.delete(np.arange(len(labels)), progressive_index)
+        terminal_ture = torch.sum(predict_mlp_t[un_progressive_index] == labels[un_progressive_index]).item()
+        final_accuracy = (terminal_ture + cloud_ture) / len(labels)
 
         # print out test accuracy for domain
         log_str = 'Dataset:%s ID:%s\tTest Accuracy target mlp %.4f\tTest Accuracy source mlp %.4f\tTest Accuracy gnn %.4f\tTest Accuracy mix gnn %.4f'\
@@ -127,6 +131,7 @@ def evaluate_DisCo(config, base_network, classifier_gnn, dset_name, test_loader,
         config['out_file'].flush()
         print(log_str)
         result_dict = {
+            'final_accuracy': final_accuracy,
             'mlp_t_accuracy': mlp_t_accuracy,
             'mlp_c_accuracy': mlp_c_accuracy,
             'mlp_c_tran_accuracy': mlp_c_tran_accuracy,
