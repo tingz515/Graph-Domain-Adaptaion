@@ -99,6 +99,7 @@ def main(args):
 
     base_network.eval()
     classifier_gnn.eval()
+    result_dict_all = {}
     for data_name, test_loader in dset_loaders["target_test"].items():
         # prepare model
         base_network_path = os.path.join(config['output_path'], f"base_network_target_{data_name}.pth")
@@ -116,6 +117,11 @@ def main(args):
             pickle.dump(evalution_result, f)
         utils.write_logs(config, f"save evalution result to {os.path.join(config['output_path'], 'eval', f'eval_{data_name}.pkl')}")
 
+        result_dict_all[data_name] = result_dict
+    result_dict_all = trainer.average_info(result_dict_all)
+    with open(os.path.join(config['output_path'], "eval", f'inference_all.json'), "wt") as f:
+        json.dump(result_dict_all, f, indent=4, sort_keys=True)
+    utils.write_logs(config, f"save evalution result to {os.path.join(config['output_path'], 'eval', 'inference_all.json')}")
 
 if __name__ == "__main__":
     args = parser.parse_args()

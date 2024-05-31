@@ -113,21 +113,22 @@ def main(args):
     log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
     utils.write_logs(config, log_str)
 
-    pseudo_label_res = {}
+    pseudo_res_all = {}
     for name in config['data']['target']['name']:
         log_str = f'==> Update target domian label on {name} ...'
         utils.write_logs(config, log_str)
 
         utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
-        pseudo_label_acc = trainer.upgrade_target_domain(config, name, dsets, dset_loaders, base_network, classifier_gnn)
-        pseudo_label_res[name] = pseudo_label_acc
+        pseudo_res = trainer.upgrade_target_domain(config, name, dsets, dset_loaders, base_network, classifier_gnn)
+        pseudo_res_all[name] = pseudo_res
         utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
 
         log_str = f'==> Change domian id on {name} ...'
         utils.write_logs(config, log_str)
         dsets["target_test"][name].set_domain_id(config["domain_id"][name])
         dset_loaders["target_test"][name].dataset.set_domain_id(config["domain_id"][name])
-    save_json(os.path.join(config['output_path'], f'pseudo_label_result.json'), pseudo_label_res)
+    pseudo_res_all = trainer.average_info(pseudo_res_all)
+    save_json(os.path.join(config['output_path'], f'pseudo_label_result.json'), pseudo_res_all)
 
     result_dict_all = {}
     for name in config['data']['target']['name']:

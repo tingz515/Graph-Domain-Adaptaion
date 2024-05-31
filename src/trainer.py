@@ -400,8 +400,16 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
         inputs_target, labels_target = batch_target['img'].to(DEVICE), batch_target['target'].to(DEVICE)
 
         # make forward pass for encoder and mlp head
-        _, logits_mlp = base_network.light_forward(inputs_target, domain_id_target)
+        feature, logits_mlp = base_network.light_forward(inputs_target, domain_id_target)
         loss = ce_criterion(logits_mlp, labels_target)
+
+        # distillation loss
+        if config["distill_light"]:
+            with torch.no_grad():
+                large_feature = base_network.large_feature( inputs_target)
+            feature_loss = (feature - large_feature.detach()).pow(2).mean()
+            loss += feature_loss
+
         loss.backward()
         optimizer.step()
         time_end = time.time()
@@ -811,7 +819,9 @@ def upgrade_target_domain(config, max_inherit_domain, dsets, dset_loaders, base_
     dset_loaders['target_train'][max_inherit_domain] = DataLoader(dataset=target_dataset_new,
                                                             batch_size=target_bs, shuffle=True,
                                                             num_workers=config['num_workers'], drop_last=True)
-    return test_res['pseudo_label_acc'] * 100
+    pseudo_label_ratio = (test_res['total_pseudo_labels'] / len(target_loader.dataset)) * 100
+    pseudo_label_acc = test_res['pseudo_label_acc'] * 100
+    return {"pseudo_label_ratio": pseudo_label_ratio, "pseudo_label_acc": pseudo_label_acc}
 
 
 def upgrade_target_domains(config, dsets, dset_loaders, base_network, classifier_gnn, curri_iter):
