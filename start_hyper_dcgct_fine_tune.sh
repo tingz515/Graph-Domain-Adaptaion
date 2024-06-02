@@ -1,7 +1,7 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
 time_tag="20240530$2"
-checkpoint_tag="2024051201"
+checkpoint_tag="2024051102"
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 # data_root="/root/datasets"
@@ -45,7 +45,7 @@ do
                 --multi_mlp 0 \
                 --unable_gnn 0 \
                 --finetune_light 1 \
-                --distill_light 0 \
+                --distill_light 1 \
                 --mlp_pseudo 0 \
                 --seed $seed \
                 --source $source \

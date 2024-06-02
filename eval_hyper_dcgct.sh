@@ -1,6 +1,7 @@
 cuda_id=$1
 time_tag="$(date '+%Y%m%d')$2"
-time_tag="20240511$2"
+time_tag="20240530$2"
+exp_id=$3
 
 data_root="/data/ztjiaweixu/Code/ZTing"
 # data_root="/root/datasets"
@@ -47,6 +48,7 @@ do
                 --target $target \
                 --data_root $data_root \
                 --output_dir $output_dir \
+                --exp_id $exp_id \
                 > ~/logs/${source}_${seed}_${tag}.out 2> ~/logs/${source}_${seed}_${tag}.err &
                 echo "run $cuda_id $source $seed $tag"
                 sleep ${time}
