@@ -32,7 +32,7 @@ parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'off
 parser.add_argument('--source', default='AList', help='name of source domain')
 parser.add_argument('--target', default='NList_PList_UList_RList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
-parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
+parser.add_argument('--data_root', type=str, default='/apdcephfs/share_1563664/ztjiaweixu/datasets/dcgct', help='path to dataset root')
 # training args
 parser.add_argument('--target_inner_iters', type=int, default=1, help='number of inner steps in train_target')
 parser.add_argument('--target_iters', type=int, default=100, help='number of fine-tuning iters on pseudo target')
@@ -58,6 +58,8 @@ parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
 parser.add_argument('--lambda_edge', default=0.3, type=float, help='edge loss weight')
 parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
+parser.add_argument('--lambda_mlp', default=1.0, type=float, help='mlp loss weight')
+parser.add_argument('--lambda_distill', default=1.0, type=float, help='distillation loss weight')
 parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
 parser.add_argument('--threshold_target', type=float, default=0.9, help='threshold for pseudo labels in update target domain')
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
@@ -98,8 +100,6 @@ def main(args):
     if config['unable_gnn']:
         classifier_gnn.eval()
     utils.write_logs(config, str(classifier_gnn))
-
-
 
     # train on source domain and compute domain inheritability
     log_str = '==> Step 1: Pre-training on the source dataset ...'
@@ -146,7 +146,6 @@ def main(args):
                 max_inherit_domain = trainer.select_closest_domain(config, base_network,
                                                                         classifier_gnn, temp_test_loaders)
 
-
     ######### Step 3: fine-tuning stage on source ###########
     log_str = '==> Step 3: Fine-tuning on pseudo-source dataset ...'
     utils.write_logs(config, log_str)
@@ -169,18 +168,22 @@ def main(args):
     log_str = '==> Step 4: Fine-tuning on pseudo-target dataset ...'
     utils.write_logs(config, log_str)
 
+    pseudo_res_all = {}
     for name in config['data']['target']['name']:
         log_str = f'==> Update target domian label on {name} ...'
         utils.write_logs(config, log_str)
 
         utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
-        trainer.upgrade_target_domain(config, name, dsets, dset_loaders, base_network, classifier_gnn)
+        pseudo_res = trainer.upgrade_target_domain(config, name, dsets, dset_loaders, base_network, classifier_gnn)
+        pseudo_res_all[name] = pseudo_res
         utils.write_logs(config, f"Dataset: {name}, {len(dsets['target_train'][name])}")
 
         log_str = f'==> Change domian id on {name} ...'
         utils.write_logs(config, log_str)
         dsets["target_test"][name].set_domain_id(config["domain_id"][name])
         dset_loaders["target_test"][name].dataset.set_domain_id(config["domain_id"][name])
+    pseudo_res_all = trainer.average_info(pseudo_res_all)
+    save_json(os.path.join(config['output_path'], f'pseudo_label_result.json'), pseudo_res_all)
 
     result_dict_all = {}
     for name in config['data']['target']['name']:

@@ -344,7 +344,7 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
         if not config['unable_gnn']:
             loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
         if config['distill_light']:
-            loss += feature_loss
+            loss += config['lambda_distill'] * feature_loss
         loss.backward()
         optimizer.step()
 
@@ -413,7 +413,7 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
             with torch.no_grad():
                 large_feature = base_network.large_feature( inputs_target)
             feature_loss = (feature - large_feature.detach()).pow(2).mean()
-            loss += feature_loss
+            loss += config['lambda_distill'] * feature_loss
 
         loss.backward()
         optimizer.step()
@@ -623,11 +623,11 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
             raise ValueError('Method cannot be recognized.')
 
         # total loss and backpropagation
-        loss = config['lambda_adv'] * trans_loss + mlp_loss
+        loss = config['lambda_adv'] * trans_loss + config['lambda_mlp'] * mlp_loss
         if not config["unable_gnn"]:
             loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
         if config['distill_light']:
-            loss += feature_loss
+            loss += config['lambda_distill'] * feature_loss
         loss.backward()
         optimizer.step()
         # printout train loss

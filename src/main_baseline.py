@@ -107,7 +107,11 @@ def main(args):
     mlp_accuracy_dict, gnn_accuracy_dict = trainer.evaluate(0, config, base_network, classifier_gnn, dset_loaders['target_test'])
     save_json(os.path.join(config['output_path'], f'source_eval_result.json'), {"mlp": mlp_accuracy_dict, "gnn": gnn_accuracy_dict})
 
-
+    # save models
+    if args.save_models:
+        torch.save(base_network.state_dict(), os.path.join(config['output_path'], 'base_network_source.pth'))
+        torch.save(classifier_gnn.state_dict(), os.path.join(config['output_path'], 'classifier_gnn_source.pth'))
+    utils.write_logs(config, '==> Saved source models!\n')
 
 if __name__ == "__main__":
     args = parser.parse_args()

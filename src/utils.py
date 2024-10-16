@@ -45,6 +45,8 @@ def build_config(args):
         'lambda_edge': args.lambda_edge,
         'lambda_node': args.lambda_node,
         'lambda_adv': args.lambda_adv,
+        'lambda_mlp': args.lambda_mlp,
+        'lambda_distill': args.lambda_distill,
         'random_dim': args.rand_proj,
         'use_cgct_mask': args.use_cgct_mask if 'use_cgct_mask' in args else False,
         "random_domain": args.random_domain if "random_domain" in args else False,

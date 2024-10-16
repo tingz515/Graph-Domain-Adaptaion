@@ -33,7 +33,7 @@ parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'off
 parser.add_argument('--source', default='AList', help='name of source domain')
 parser.add_argument('--target', default='NList_PList_UList_RList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
-parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
+parser.add_argument('--data_root', type=str, default='/apdcephfs/share_1563664/ztjiaweixu/datasets/dcgct', help='path to dataset root')
 # training args
 parser.add_argument('--target_inner_iters', type=int, default=1, help='number of inner steps in train_target')
 parser.add_argument('--target_iters', type=int, default=100, help='number of fine-tuning iters on pseudo target')
@@ -59,6 +59,8 @@ parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
 parser.add_argument('--lambda_edge', default=0.3, type=float, help='edge loss weight')
 parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
+parser.add_argument('--lambda_mlp', default=1.0, type=float, help='mlp loss weight')
+parser.add_argument('--lambda_distill', default=1.0, type=float, help='distillation loss weight')
 parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
 parser.add_argument('--threshold_target', type=float, default=0.9, help='threshold for pseudo labels in update target domain')
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
@@ -100,7 +102,6 @@ def main(args):
     if config['unable_gnn']:
         classifier_gnn.eval()
     utils.write_logs(config, str(classifier_gnn))
-
 
     base_network.load_state_dict(torch.load(os.path.join(args.checkpoint_dir, 'base_network_source.pth')))
     classifier_gnn.load_state_dict(torch.load(os.path.join(args.checkpoint_dir, 'classifier_gnn_source.pth')))
