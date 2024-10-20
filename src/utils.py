@@ -124,7 +124,7 @@ def build_config(args):
             'batch_size': args.target_batch,
         },
         'test': {
-            'name': args.target.split("_"),
+            'name': args.target.split("_") if args.test is None else args.test.split("_"),
             'batch_size': args.test_batch,
         },
     }
@@ -145,6 +145,9 @@ def build_config(args):
     elif config['dataset'] == 'MTRS':
         config['encoder']['params']['class_num'] = 10
         config['data']['image_list_root'] = 'data/MTRS/'
+    elif config['dataset'] == 'MRSSC2':
+        config['encoder']['params']['class_num'] = 10
+        config['data']['image_list_root'] = 'data/MRSSC2/'
     else:
         raise ValueError('Dataset cannot be recognized. Please define your own dataset here.')
 
@@ -203,17 +206,19 @@ def build_data(config):
     print(f"source: {len(dsets['source'])}")
 
     # target dataloader
-    for i, dset_name in enumerate(sorted(data_config['target']['name'])):
+    # for i, dset_name in enumerate(sorted(data_config['target']['name'])):
+    for dset_name_train, dset_name_test in zip(data_config['target']['name'], data_config['test']['name']):
+        dset_name = dset_name_train
         domain_id = 0 if config.get('same_id_adapt', True) else config["domain_id"][dset_name]
         # create train and test datasets for a target domain
         dsets['target_train'][dset_name] = ImageList(image_root=config['data_root'],
                                                      image_list_root=data_config['image_list_root'],
-                                                     dataset=dset_name, transform=config['prep']['target'],
+                                                     dataset=dset_name_train, transform=config['prep']['target'],
                                                      domain_label=1, domain_id=domain_id, dataset_name=config['dataset'], split='train',
                                                      use_cgct_mask=config['use_cgct_mask'])
         dsets['target_test'][dset_name] = ImageList(image_root=config['data_root'],
                                                     image_list_root=data_config['image_list_root'],
-                                                    dataset=dset_name, transform=config['prep']['test'],
+                                                    dataset=dset_name_test, transform=config['prep']['test'],
                                                     domain_label=1, domain_id=domain_id, dataset_name=config['dataset'], split='test',
                                                     use_cgct_mask=config['use_cgct_mask'])
         print(f"target: train {len(dsets['target_train'][dset_name])} test {len(dsets['target_test'][dset_name])}")

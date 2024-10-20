@@ -28,11 +28,12 @@ parser.add_argument('--rand_proj', type=int, default=512, help='random projectio
 parser.add_argument('--edge_features', type=int, default=128, help='graph edge features dimension')
 parser.add_argument('--save_models', action='store_false', help='whether to save encoder, mlp and gnn models')
 # dataset args
-parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'office31', 'office-home', 'pacs',
+parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'MRSSC2', 'office31', 'office-home', 'pacs',
                                                                         'domain-net'], help='dataset used')
 parser.add_argument('--source', default='AList', help='name of source domain')
 parser.add_argument('--target', default='NList_PList_UList_RList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
+parser.add_argument('--test', default=None, help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/apdcephfs/share_1563664/ztjiaweixu/datasets/dcgct', help='path to dataset root')
 # training args
 parser.add_argument('--target_inner_iters', type=int, default=1, help='number of inner steps in train_target')
