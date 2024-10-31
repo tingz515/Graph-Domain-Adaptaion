@@ -33,6 +33,7 @@ parser.add_argument('--source', default='AList', help='name of source domain')
 parser.add_argument('--target', default='NList_PList_UList_RList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
 parser.add_argument('--test', default=None, help='names of target domains')
+# parser.add_argument('--test', default="Test3_Test2_Test1", help='names of target domains')
 parser.add_argument('--data_root', type=str, default='/apdcephfs/share_1563664/ztjiaweixu/datasets/dcgct', help='path to dataset root')
 # training args
 parser.add_argument('--target_inner_iters', type=int, default=1, help='number of inner steps in train_target')
@@ -101,6 +102,22 @@ def main(args):
     if config['unable_gnn']:
         classifier_gnn.eval()
     utils.write_logs(config, str(classifier_gnn))
+
+    params_num = sum(p.numel() for p in base_network.parameters() if p.requires_grad) + \
+                    sum(p.numel() for p in classifier_gnn.parameters() if p.requires_grad)
+    utils.write_logs(config, f"Total number of parameters: {params_num}") # 36835215
+
+    # from fvcore.nn import FlopCountAnalysis
+    # base_network.eval()
+    # classifier_gnn.eval()
+    # input1 = torch.randn(1, 3, 224, 224).to(DEVICE)
+    # flops1 = FlopCountAnalysis(base_network, (input1, ))
+
+    # input2 = torch.randn(2, 256).to(DEVICE)
+    # flops2 = FlopCountAnalysis(classifier_gnn, (input2, ))
+    # flops = flops1.total() + flops2.total()
+    # print(f"FLOPs: {flops} = {flops1.total()} + {flops2.total()}")
+    # FLOPs: 5931860488 = 5931441664 + 418824
 
     # train on source domain and compute domain inheritability
     log_str = '==> Step 1: Pre-training on the source dataset ...'

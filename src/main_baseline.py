@@ -29,7 +29,8 @@ parser.add_argument('--dataset', type=str, default='MTRS', choices=['MTRS', 'off
 parser.add_argument('--source', default='AList', help='name of source domain')
 parser.add_argument('--target', default='NList_PList_RList_UList', help='names of target domains')
 # parser.add_argument('--target', nargs='+', default=['dslr', 'webcam'], help='names of target domains')
-parser.add_argument('--data_root', type=str, default='/data/ztjiaweixu/Code/ZTing', help='path to dataset root')
+parser.add_argument('--test', default=None, help='names of target domains')
+parser.add_argument('--data_root', type=str, default='/apdcephfs/share_1563664/ztjiaweixu/datasets/dcgct', help='path to dataset root')
 # training args
 parser.add_argument('--target_inner_iters', type=int, default=1, help='number of inner steps in train_target')
 parser.add_argument('--target_iters', type=int, default=100, help='number of fine-tuning iters on pseudo target')
@@ -55,6 +56,8 @@ parser.add_argument('--wd', type=float, default=0.0005, help='weight decay')
 parser.add_argument('--lambda_edge', default=0.3, type=float, help='edge loss weight')
 parser.add_argument('--lambda_node', default=0.3, type=float, help='node classification loss weight')
 parser.add_argument('--lambda_adv', default=1.0, type=float, help='adversarial loss weight')
+parser.add_argument('--lambda_mlp', default=1.0, type=float, help='mlp loss weight')
+parser.add_argument('--lambda_distill', default=1.0, type=float, help='distillation loss weight')
 parser.add_argument('--threshold_progressive', type=float, default=0.7, help='threshold for progressive inference')
 parser.add_argument('--threshold_target', type=float, default=0.9, help='threshold for pseudo labels in update target domain')
 parser.add_argument('--threshold', type=float, default=0.7, help='threshold for pseudo labels')
@@ -86,6 +89,17 @@ def main(args):
     base_network = net_config["name"](**net_config["params"])
     base_network = base_network.to(DEVICE)
     utils.write_logs(config, str(base_network))
+
+    params_num = sum(p.numel() for p in base_network.parameters() if p.requires_grad)
+    utils.write_logs(config, f"Total number of parameters: {params_num}") # 24035146
+    # time 0.16938148845325818
+
+    # from fvcore.nn import FlopCountAnalysis
+    # base_network.eval()
+    # input1 = torch.randn(1, 3, 224, 224).to(DEVICE)
+    # flops1 = FlopCountAnalysis(base_network, (input1, ))
+    # print(flops1.total()) # 4109991424
+
     # set GNN classifier
     classifier_gnn = graph_net.ClassifierGNN(in_features=base_network.bottleneck.out_features,
                                              edge_features=config['edge_features'],

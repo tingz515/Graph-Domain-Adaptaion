@@ -36,7 +36,9 @@ def evaluate_DisCo(config, base_network, classifier_gnn, dset_name, test_loader,
     with torch.no_grad():
         iter_test = iter(test_loader)
         domain_id = test_loader.dataset.domain_id
+        time_list = []
         for i in range(len(test_loader)):
+            time_start = time.time()
             data = iter_test.next()
             inputs = data['img'].to(DEVICE)
             # forward pass
@@ -63,6 +65,12 @@ def evaluate_DisCo(config, base_network, classifier_gnn, dset_name, test_loader,
             mix_logits_gnn = mix_logits_gnn[-len(inputs): ]
             mix_logits_gnn_tran = classifier_gnn(features_mix_t)[0]
             mix_logits_gnn_tran = mix_logits_gnn_tran[-len(inputs): ]
+
+            time_end = time.time()
+            # time_list.append(time_end - time_start)
+            # if i == 10:
+            #     print("Average time per iteration: ", np.mean(time_list)) # 0.200440298427235
+            #     exit()
 
             logits_mlp_t_all.append(logits_mlp_t.cpu())
             logits_mlp_c_all.append(logits_mlp_c.cpu())
@@ -312,7 +320,9 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
         classifier_gnn.train()
     len_train_source = len(dset_loaders["source"])
     domain_id = 0
+    time_list = []
     for i in range(config['source_iters']):
+        time_start = time.time()
         if optimizer_config['lr_type'] == "inv":
             optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
@@ -347,6 +357,12 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
             loss += config['lambda_distill'] * feature_loss
         loss.backward()
         optimizer.step()
+
+        time_end = time.time()
+        # time_list.append(time_end - time_start)
+        # if i == 10:
+        #     print("Average time per iteration: ", np.mean(time_list)) # 0.3841851191087203
+        #     exit()
 
         # printout train loss
         if i % 20 == 0 or i == config['source_iters'] - 1:
@@ -566,7 +582,9 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         classifier_gnn.train()
     adv_net.train()
     random_layer.train()
+    time_list = []
     for i in range(config['adapt_iters']):
+        time_start = time.time()
         if optimizer_config['lr_type'] == "inv":
             optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
         optimizer.zero_grad()
@@ -630,11 +648,19 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
             loss += config['lambda_distill'] * feature_loss
         loss.backward()
         optimizer.step()
+
+        time_end = time.time()
+        time_iter = time_end - time_start
+        # time_list.append(time_iter)
+        # if i == 10:
+        #     print('Average time per iteration: %.4f' % (sum(time_list) / len(time_list))) # 0.6556
+        #     exit()
+
         # printout train loss
         if i % 20 == 0 or i == config['adapt_iters'] - 1:
-            log_str = 'Iters:(%4d/%d)\tMLP loss: %.4f\t GNN Loss: %.4f\t Edge Loss: %.4f\t Transfer loss:%.4f' % (
+            log_str = 'Iters:(%4d/%d)\tMLP loss: %.4f\t GNN Loss: %.4f\t Edge Loss: %.4f\t Transfer loss:%.4f\t Time:%.4f' % (
                 i, config["adapt_iters"], mlp_loss.item(), config['lambda_node'] * gnn_loss.item(),
-                config['lambda_edge'] * edge_loss.item(), config['lambda_adv'] * trans_loss.item()
+                config['lambda_edge'] * edge_loss.item(), config['lambda_adv'] * trans_loss.item(), time_iter
             )
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
