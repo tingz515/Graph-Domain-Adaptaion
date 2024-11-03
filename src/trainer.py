@@ -549,21 +549,20 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
     criterion_gedge = nn.BCELoss(reduction='mean')
     ce_criterion = nn.CrossEntropyLoss()
     # add random layer and adversarial network
-    class_num = config['encoder']['params']['class_num']
-    random_layer = networks.RandomLayer([base_network.output_num(), class_num], config['random_dim'], DEVICE)
-    
-    adv_net = networks.AdversarialNetwork(config['random_dim'], config['random_dim'], config['ndomains'])
-    
-    random_layer.to(DEVICE)
-    adv_net = adv_net.to(DEVICE)
+    if config['ndomains'] > 1:
+        class_num = config['encoder']['params']['class_num']
+        random_layer = networks.RandomLayer([base_network.output_num(), class_num], config['random_dim'], DEVICE)
+        adv_net = networks.AdversarialNetwork(config['random_dim'], config['random_dim'], config['ndomains'])
+        random_layer.to(DEVICE)
+        adv_net = adv_net.to(DEVICE)
 
     # configure optimizer
     optimizer_config = config['optimizer']
-    if config["unable_gnn"]:
-        parameter_list = base_network.get_parameters() + adv_net.get_parameters()
-    else:
-        parameter_list = base_network.get_parameters() + adv_net.get_parameters() \
-                        + [{'params': classifier_gnn.parameters(), 'lr_mult': 10, 'decay_mult': 2}]
+    parameter_list = base_network.get_parameters()
+    if config['ndomains'] > 1:
+        parameter_list +=  adv_net.get_parameters()
+    if not config["unable_gnn"]:
+        parameter_list += [{'params': classifier_gnn.parameters(), 'lr_mult': 10, 'decay_mult': 2}]
     optimizer = optimizer_config['type'](parameter_list, **(optimizer_config['optim_params']))
     # configure learning rates
     param_lr = []
@@ -580,8 +579,9 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
     base_network.train()
     if not config["unable_gnn"]:
         classifier_gnn.train()
-    adv_net.train()
-    random_layer.train()
+    if config['ndomains'] > 1:
+        adv_net.train()
+        random_layer.train()
     time_list = []
     for i in range(config['adapt_iters']):
         time_start = time.time()
@@ -630,15 +630,18 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         edge_loss = criterion_gedge(edge_sim.masked_select(edge_mask), edge_gt.masked_select(edge_mask))
 
         # *** Adversarial net at work ***
-        if config['method'] == 'CDAN+E':
-            entropy = transfer_loss.Entropy(softmax_mlp)
-            trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp], adv_net,
-                                            entropy, networks.calc_coeff(i), random_layer, domain_input)
-        elif config['method'] == 'CDAN':
-            trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp],
-                                            adv_net, None, None, random_layer, domain_input)
+        if config['ndomains'] > 1:
+            if config['method'] == 'CDAN+E':
+                entropy = transfer_loss.Entropy(softmax_mlp)
+                trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp], adv_net,
+                                                entropy, networks.calc_coeff(i), random_layer, domain_input)
+            elif config['method'] == 'CDAN':
+                trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp],
+                                                adv_net, None, None, random_layer, domain_input)
+            else:
+                raise ValueError('Method cannot be recognized.')
         else:
-            raise ValueError('Method cannot be recognized.')
+            trans_loss = torch.zeros(1).to(DEVICE)
 
         # total loss and backpropagation
         loss = config['lambda_adv'] * trans_loss + config['lambda_mlp'] * mlp_loss
