@@ -40,6 +40,9 @@ def build_config(args):
         'source_iters': args.source_iters,
         'finetune_iters': args.finetune_iters,
         'adapt_iters': args.adapt_iters,
+        'source_epochs': args.source_epochs,
+        'finetune_epochs': args.finetune_epochs,
+        'adapt_epochs': args.adapt_epochs,
         'test_interval': args.test_interval,
         'num_workers': args.num_workers,
         'lambda_edge': args.lambda_edge,
@@ -59,6 +62,7 @@ def build_config(args):
     if "hyper_dcgct" in args.alg_type:
         config['target_inner_iters'] = args.target_inner_iters
         config['target_iters'] = args.target_iters // args.target_inner_iters
+        config['target_epochs'] = args.target_epochs
         config['same_id_adapt'] = args.same_id_adapt
         config['threshold_progressive'] = args.threshold_progressive
         config['threshold_target'] = args.threshold_target

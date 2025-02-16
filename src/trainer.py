@@ -321,56 +321,55 @@ def train_source(config, base_network, classifier_gnn, dset_loaders, logger=None
     len_train_source = len(dset_loaders["source"])
     domain_id = 0
     time_list = []
-    for i in range(config['source_iters']):
-        time_start = time.time()
-        if optimizer_config['lr_type'] == "inv":
-            optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
-        optimizer.zero_grad()
+    for i in range(config['source_epochs']):
+        iter_source = iter(dset_loaders["source"])
+        for _ in range(len_train_source):
+            time_start = time.time()
+            if optimizer_config['lr_type'] == "inv":
+                optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+            optimizer.zero_grad()
 
-        # get input data
-        if i % len_train_source == 0:
-            iter_source = iter(dset_loaders["source"])
-        batch_source = iter_source.next()
-        inputs_source, labels_source = batch_source['img'].to(DEVICE), batch_source['target'].to(DEVICE)
+            batch_source = iter_source.next()
+            inputs_source, labels_source = batch_source['img'].to(DEVICE), batch_source['target'].to(DEVICE)
 
-        # make forward pass for encoder and mlp head
-        features_source, logits_mlp = base_network(inputs_source, domain_id)
-        mlp_loss = ce_criterion(logits_mlp, labels_source)
+            # make forward pass for encoder and mlp head
+            features_source, logits_mlp = base_network(inputs_source, domain_id)
+            mlp_loss = ce_criterion(logits_mlp, labels_source)
 
-        # make forward pass for light encoder
-        if config['distill_light']:
-            light_features_source = base_network.light_feature(inputs_source)
-            feature_loss = (features_source.detach() - light_features_source).pow(2).mean()
+            # make forward pass for light encoder
+            if config['distill_light']:
+                light_features_source = base_network.light_feature(inputs_source)
+                feature_loss = (features_source.detach() - light_features_source).pow(2).mean()
 
-        # make forward pass for gnn head
-        logits_gnn, edge_sim = classifier_gnn(features_source)
-        gnn_loss = ce_criterion(logits_gnn, labels_source)
-        # compute edge loss
-        edge_gt, edge_mask = classifier_gnn.label2edge(labels_source.unsqueeze(dim=0))
-        edge_loss = criterion_gedge(edge_sim.masked_select(edge_mask), edge_gt.masked_select(edge_mask))
+            # make forward pass for gnn head
+            logits_gnn, edge_sim = classifier_gnn(features_source)
+            gnn_loss = ce_criterion(logits_gnn, labels_source)
+            # compute edge loss
+            edge_gt, edge_mask = classifier_gnn.label2edge(labels_source.unsqueeze(dim=0))
+            edge_loss = criterion_gedge(edge_sim.masked_select(edge_mask), edge_gt.masked_select(edge_mask))
 
-        # total loss and backpropagation
-        loss = mlp_loss
-        if not config['unable_gnn']:
-            loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
-        if config['distill_light']:
-            loss += config['lambda_distill'] * feature_loss
-        loss.backward()
-        optimizer.step()
+            # total loss and backpropagation
+            loss = mlp_loss
+            if not config['unable_gnn']:
+                loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+            if config['distill_light']:
+                loss += config['lambda_distill'] * feature_loss
+            loss.backward()
+            optimizer.step()
 
-        time_end = time.time()
-        # time_list.append(time_end - time_start)
-        # if i == 10:
-        #     print("Average time per iteration: ", np.mean(time_list)) # 0.3841851191087203
-        #     exit()
+            time_end = time.time()
+            # time_list.append(time_end - time_start)
+            # if i == 10:
+            #     print("Average time per iteration: ", np.mean(time_list)) # 0.3841851191087203
+            #     exit()
 
         # printout train loss
-        if i % 20 == 0 or i == config['source_iters'] - 1:
-            log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f\tGNN loss:%.4f\tEdge loss:%.4f' % (i,
-                  config['source_iters'], mlp_loss.item(), gnn_loss.item(), edge_loss.item())
+        if i % 5 == 0 or i == config['source_epochs'] - 1:
+            log_str = 'Epochs:(%4d/%d)\tMLP loss:%.4f\tGNN loss:%.4f\tEdge loss:%.4f' % (i,
+                  config['source_epochs'], mlp_loss.item(), gnn_loss.item(), edge_loss.item())
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
-        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['source_iters'] - 1:
+        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['source_epochs'] - 1:
             mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
             if logger is not None:
                 logger.record("iter", i)
@@ -408,36 +407,41 @@ def train_target(config, base_network, classifier_gnn, dset_loaders, domain_name
     classifier_gnn.apply(freeze_bn)
     len_train_target = len(dset_loaders["target_train"][domain_name])
     domain_id_target = dset_loaders["target_train"][domain_name].dataset.domain_id
-    for i in range(config['target_iters']):
-        time_start = time.time()
-        if optimizer_config['lr_type_hyper'] == "inv":
-            optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
-        optimizer.zero_grad()
+    for i in range(config['target_epochs']):
+        iter_target = iter(dset_loaders["target_train"][domain_name])
+        time_list = []
+        for j in range(len_train_target):
+            time_start = time.time()
+            if optimizer_config['lr_type_hyper'] == "inv":
+                optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+            optimizer.zero_grad()
 
-        # get input data
-        if i % len_train_target == 0:
-            iter_target = iter(dset_loaders["target_train"][domain_name])
-        batch_target = iter_target.next()
-        inputs_target, labels_target = batch_target['img'].to(DEVICE), batch_target['target'].to(DEVICE)
+            # get input data
+            batch_target = iter_target.next()
+            inputs_target, labels_target = batch_target['img'].to(DEVICE), batch_target['target'].to(DEVICE)
 
-        # make forward pass for encoder and mlp head
-        feature, logits_mlp = base_network.light_forward(inputs_target, domain_id_target)
-        loss = ce_criterion(logits_mlp, labels_target)
+            # make forward pass for encoder and mlp head
+            feature, logits_mlp = base_network.light_forward(inputs_target, domain_id_target)
+            loss = ce_criterion(logits_mlp, labels_target)
 
-        # distillation loss
-        if config["distill_light"]:
-            with torch.no_grad():
-                large_feature = base_network.large_feature( inputs_target)
-            feature_loss = (feature - large_feature.detach()).pow(2).mean()
-            loss += config['lambda_distill'] * feature_loss
+            # distillation loss
+            if config["distill_light"]:
+                with torch.no_grad():
+                    large_feature = base_network.large_feature( inputs_target)
+                feature_loss = (feature - large_feature.detach()).pow(2).mean()
+                loss += config['lambda_distill'] * feature_loss
 
-        loss.backward()
-        optimizer.step()
-        time_end = time.time()
-        time_iter = time_end - time_start
+            loss.backward()
+            optimizer.step()
+            time_end = time.time()
+            time_iter = time_end - time_start
+            # time_list.append(time_iter)
+            # if j == 10:
+            #     print('Average time per iteration: %.4f' % (sum(time_list) / len(time_list))) # 0.6556
+            #     exit()
 
         # printout train loss
-        if i % 20 == 0 or i == config['target_iters'] - 1:
+        if i % 5 == 0 or i == config['target_iters'] - 1:
             log_str = 'Iters:(%4d/%d)\tMLP loss:%.4f\t Time:%.4f' % (i, config['target_iters'], loss.item(), time_iter)
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
@@ -583,91 +587,94 @@ def adapt_target(config, base_network, classifier_gnn, dset_loaders, max_inherit
         adv_net.train()
         random_layer.train()
     time_list = []
-    for i in range(config['adapt_iters']):
-        time_start = time.time()
-        if optimizer_config['lr_type'] == "inv":
-            optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
-        optimizer.zero_grad()
-        # get input data
-        if i % len_train_source == 0:
-            iter_source = iter(dset_loaders['source'])
-        if i % len_train_target == 0:
-            iter_target = iter(dset_loaders['target_train'][max_inherit_domain])
-        batch_source = iter_source.next()
-        batch_target = iter_target.next()
-        inputs_source, inputs_target = batch_source['img'].to(DEVICE), batch_target['img'].to(DEVICE)
-        labels_source = batch_source['target'].to(DEVICE)
-        domain_source, domain_target = batch_source['domain'].to(DEVICE), batch_target['domain'].to(DEVICE)
-        domain_input = torch.cat([domain_source, domain_target], dim=0)
+    iter_num = 0
+    for i in range(config['adapt_epochs']):
+        iter_target = iter(dset_loaders['target_train'][max_inherit_domain])
+        for _ in range(len_train_target):
+            time_start = time.time()
+            if optimizer_config['lr_type'] == "inv":
+                optimizer = utils.inv_lr_scheduler(optimizer, i, **schedule_param)
+            optimizer.zero_grad()
+            # get input data
+            if iter_num % len_train_source == 0:
+                iter_source = iter(dset_loaders['source'])
+            batch_source = iter_source.next()
+            batch_target = iter_target.next()
+            inputs_source, inputs_target = batch_source['img'].to(DEVICE), batch_target['img'].to(DEVICE)
+            labels_source = batch_source['target'].to(DEVICE)
+            domain_source, domain_target = batch_source['domain'].to(DEVICE), batch_target['domain'].to(DEVICE)
+            domain_input = torch.cat([domain_source, domain_target], dim=0)
 
-        # make forward pass for encoder and mlp head
-        features_source, logits_mlp_source = base_network(inputs_source, domain_id_source)
-        features_target, logits_mlp_target = base_network(inputs_target, domain_id_target)
-        features = torch.cat((features_source, features_target), dim=0)
-        logits_mlp = torch.cat((logits_mlp_source, logits_mlp_target), dim=0)
-        softmax_mlp = nn.Softmax(dim=1)(logits_mlp)
-        mlp_loss = ce_criterion(logits_mlp_source, labels_source)
+            # make forward pass for encoder and mlp head
+            features_source, logits_mlp_source = base_network(inputs_source, domain_id_source)
+            features_target, logits_mlp_target = base_network(inputs_target, domain_id_target)
+            features = torch.cat((features_source, features_target), dim=0)
+            logits_mlp = torch.cat((logits_mlp_source, logits_mlp_target), dim=0)
+            softmax_mlp = nn.Softmax(dim=1)(logits_mlp)
+            mlp_loss = ce_criterion(logits_mlp_source, labels_source)
 
-        # make forward pass for light encoder
-        if config['distill_light']:
-            light_features = base_network.light_feature(torch.cat((inputs_source, inputs_target), dim=0))
-            feature_loss = (features.detach() - light_features).pow(2).mean()
+            # make forward pass for light encoder
+            if config['distill_light']:
+                light_features = base_network.light_feature(torch.cat((inputs_source, inputs_target), dim=0))
+                feature_loss = (features.detach() - light_features).pow(2).mean()
 
-        # *** GNN at work ***
-        # make forward pass for gnn head
-        logits_gnn, edge_sim = classifier_gnn(features)
-        gnn_loss = ce_criterion(logits_gnn[:labels_source.size(0)], labels_source)
-        # compute pseudo-labels for affinity matrix by mlp classifier
-        out_target_class = torch.softmax(logits_mlp_target, dim=1)
-        target_score, target_pseudo_labels = out_target_class.max(1, keepdim=True)
-        idx_pseudo = target_score > config['threshold']
-        target_pseudo_labels[~idx_pseudo] = classifier_gnn.mask_val
-        # combine source labels and target pseudo labels for edge_net
-        node_labels = torch.cat((labels_source, target_pseudo_labels.squeeze(dim=1)), dim=0).unsqueeze(dim=0)
-        # compute source-target mask and ground truth for edge_net
-        edge_gt, edge_mask = classifier_gnn.label2edge(node_labels)
-        # compute edge loss
-        edge_loss = criterion_gedge(edge_sim.masked_select(edge_mask), edge_gt.masked_select(edge_mask))
+            # *** GNN at work ***
+            # make forward pass for gnn head
+            logits_gnn, edge_sim = classifier_gnn(features)
+            gnn_loss = ce_criterion(logits_gnn[:labels_source.size(0)], labels_source)
+            # compute pseudo-labels for affinity matrix by mlp classifier
+            out_target_class = torch.softmax(logits_mlp_target, dim=1)
+            target_score, target_pseudo_labels = out_target_class.max(1, keepdim=True)
+            idx_pseudo = target_score > config['threshold']
+            target_pseudo_labels[~idx_pseudo] = classifier_gnn.mask_val
+            # combine source labels and target pseudo labels for edge_net
+            node_labels = torch.cat((labels_source, target_pseudo_labels.squeeze(dim=1)), dim=0).unsqueeze(dim=0)
+            # compute source-target mask and ground truth for edge_net
+            edge_gt, edge_mask = classifier_gnn.label2edge(node_labels)
+            # compute edge loss
+            edge_loss = criterion_gedge(edge_sim.masked_select(edge_mask), edge_gt.masked_select(edge_mask))
 
-        # *** Adversarial net at work ***
-        if config['ndomains'] > 1:
-            if config['method'] == 'CDAN+E':
-                entropy = transfer_loss.Entropy(softmax_mlp)
-                trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp], adv_net,
-                                                entropy, networks.calc_coeff(i), random_layer, domain_input)
-            elif config['method'] == 'CDAN':
-                trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp],
-                                                adv_net, None, None, random_layer, domain_input)
+            # *** Adversarial net at work ***
+            if config['ndomains'] > 1:
+                if config['method'] == 'CDAN+E':
+                    entropy = transfer_loss.Entropy(softmax_mlp)
+                    trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp], adv_net,
+                                                    entropy, networks.calc_coeff(i), random_layer, domain_input)
+                elif config['method'] == 'CDAN':
+                    trans_loss = transfer_loss.CDAN(config['ndomains'], [features, softmax_mlp],
+                                                    adv_net, None, None, random_layer, domain_input)
+                else:
+                    raise ValueError('Method cannot be recognized.')
             else:
-                raise ValueError('Method cannot be recognized.')
-        else:
-            trans_loss = torch.zeros(1).to(DEVICE)
+                trans_loss = torch.zeros(1).to(DEVICE)
 
-        # total loss and backpropagation
-        loss = config['lambda_adv'] * trans_loss + config['lambda_mlp'] * mlp_loss
-        if not config["unable_gnn"]:
-            loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
-        if config['distill_light']:
-            loss += config['lambda_distill'] * feature_loss
-        loss.backward()
-        optimizer.step()
+            # total loss and backpropagation
+            loss = config['lambda_adv'] * trans_loss + config['lambda_mlp'] * mlp_loss
+            if not config["unable_gnn"]:
+                loss += config['lambda_node'] * gnn_loss + config['lambda_edge'] * edge_loss
+            if config['distill_light']:
+                loss += config['lambda_distill'] * feature_loss
+            loss.backward()
+            optimizer.step()
 
-        time_end = time.time()
-        time_iter = time_end - time_start
-        # time_list.append(time_iter)
-        # if i == 10:
-        #     print('Average time per iteration: %.4f' % (sum(time_list) / len(time_list))) # 0.6556
-        #     exit()
+            iter_num += 1
+
+            time_end = time.time()
+            time_iter = time_end - time_start
+            # time_list.append(time_iter)
+            # if i == 10:
+            #     print('Average time per iteration: %.4f' % (sum(time_list) / len(time_list))) # 0.6556
+            #     exit()
 
         # printout train loss
-        if i % 20 == 0 or i == config['adapt_iters'] - 1:
-            log_str = 'Iters:(%4d/%d)\tMLP loss: %.4f\t GNN Loss: %.4f\t Edge Loss: %.4f\t Transfer loss:%.4f\t Time:%.4f' % (
-                i, config["adapt_iters"], mlp_loss.item(), config['lambda_node'] * gnn_loss.item(),
+        if i % 5 == 0 or i == config['adapt_epochs'] - 1:
+            log_str = 'Epochs:(%4d/%d)\tMLP loss: %.4f\t GNN Loss: %.4f\t Edge Loss: %.4f\t Transfer loss:%.4f\t Time:%.4f' % (
+                i, config["adapt_epochs"], mlp_loss.item(), config['lambda_node'] * gnn_loss.item(),
                 config['lambda_edge'] * edge_loss.item(), config['lambda_adv'] * trans_loss.item(), time_iter
             )
             utils.write_logs(config, log_str)
         # evaluate network every test_interval
-        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['adapt_iters'] - 1:
+        if i % config['test_interval'] == config['test_interval'] - 1 or i == config['adapt_epochs'] - 1:
             mlp_accuracy_dict, gnn_accuracy_dict = evaluate(i, config, base_network, classifier_gnn, dset_loaders['target_test'])
             if logger is not None:
                 logger.record("iter", i)

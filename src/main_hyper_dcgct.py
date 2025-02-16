@@ -41,7 +41,11 @@ parser.add_argument('--target_iters', type=int, default=100, help='number of fin
 parser.add_argument('--source_iters', type=int, default=100, help='number of source pre-train iters')
 parser.add_argument('--adapt_iters', type=int, default=100, help='number of iters for a curriculum adaptation')
 parser.add_argument('--finetune_iters', type=int, default=10, help='number of fine-tuning iters')
-parser.add_argument('--test_interval', type=int, default=100, help='interval of two continuous test phase')
+parser.add_argument('--target_epochs', type=int, default=2, help='number of fine-tuning epochs on pseudo target')
+parser.add_argument('--source_epochs', type=int, default=1, help='number of source pre-train epochs')
+parser.add_argument('--adapt_epochs', type=int, default=2, help='number of epochs for a curriculum adaptation')
+parser.add_argument('--finetune_epochs', type=int, default=2, help='number of fine-tuning epochs')
+parser.add_argument('--test_interval', type=int, default=5, help='interval of two continuous test phase')
 parser.add_argument('--output_dir', type=str, default='./results/ZTing', help='output directory')
 parser.add_argument('--source_batch', type=int, default=16)
 parser.add_argument('--target_batch', type=int, default=16)
@@ -106,15 +110,18 @@ def main(args):
     params_num = sum(p.numel() for p in base_network.parameters() if p.requires_grad) + \
                     sum(p.numel() for p in classifier_gnn.parameters() if p.requires_grad)
     utils.write_logs(config, f"Total number of parameters: {params_num}") # 36835215
+    # params_num = sum(p.numel() for n, p in base_network.named_parameters() if p.requires_grad and "light" in n)
+    # utils.write_logs(config, f"Total number of light parameters: {params_num}") # 11307840
 
     # from fvcore.nn import FlopCountAnalysis
     # base_network.eval()
     # classifier_gnn.eval()
     # input1 = torch.randn(1, 3, 224, 224).to(DEVICE)
-    # flops1 = FlopCountAnalysis(base_network, (input1, ))
+    # flops1 = FlopCountAnalysis(base_network, (input1, )) # 4111372800, cloud weight
+    # flops2 = FlopCountAnalysis(base_network, (input1, )) # 1820068864, terminal weight
 
     # input2 = torch.randn(2, 256).to(DEVICE)
-    # flops2 = FlopCountAnalysis(classifier_gnn, (input2, ))
+    # flops2 = FlopCountAnalysis(classifier_gnn, (input2, )) # 418824
     # flops = flops1.total() + flops2.total()
     # print(f"FLOPs: {flops} = {flops1.total()} + {flops2.total()}")
     # FLOPs: 5931860488 = 5931441664 + 418824
@@ -167,7 +174,7 @@ def main(args):
     ######### Step 3: fine-tuning stage on source ###########
     log_str = '==> Step 3: Fine-tuning on pseudo-source dataset ...'
     utils.write_logs(config, log_str)
-    config['source_iters'] = config['finetune_iters']
+    config['source_epochs'] = config['finetune_epochs']
     logger = configure(config["output_path"], ["csv"], f"_step3")
     base_network, classifier_gnn = trainer.train_source(config, base_network, classifier_gnn, dset_loaders, logger)
     del logger
